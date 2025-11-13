@@ -1,11 +1,8 @@
 from datetime import datetime
-from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field, computed_field
-from sqlalchemy import BigInteger, DateTime, Integer, String, func
+from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-T = TypeVar("T")
 
 
 class Base(DeclarativeBase):
@@ -17,7 +14,7 @@ class Base(DeclarativeBase):
 class BaseTableMixin:
     """所有数据库表的Mixin，包含通用字段"""
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="主键ID")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
     create_by: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="创建人")
     update_by: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="更新人")
     create_time: Mapped[datetime] = mapped_column(
@@ -29,7 +26,7 @@ class BaseTableMixin:
     deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="逻辑删除(0:未删除 1:已删除)")
 
 
-class BaseResponse(BaseModel, Generic[T]):
+class BaseResponse[T](BaseModel):
     """所有API响应的基类"""
 
     success: bool
@@ -57,7 +54,7 @@ class BasePageQuery(BaseModel):
 
 
 # 分页数据
-class PageResponse(BaseModel, Generic[T]):
+class PageResponse[T](BaseModel):
     """分页响应基础数据"""
 
     page_num: int = Field(1, description="当前页码")

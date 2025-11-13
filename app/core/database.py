@@ -3,13 +3,12 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# 数据库配置
-DATABASE_URL = "sqlite+aiosqlite:///./test.db"  # 默认使用SQLite，可以通过环境变量配置
+from app.core.config import settings
 
 # 创建异步引擎
 engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,  # 开发环境打印SQL，生产环境应设为False
+    settings.DATABASE_URL,
+    echo=settings.DEBUG,  # 开发环境打印SQL，生产环境应设为False
     future=True,
     pool_pre_ping=True,
 )

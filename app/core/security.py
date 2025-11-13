@@ -1,14 +1,12 @@
 import hashlib
+import os
 from datetime import datetime, timedelta
 
+import bcrypt
 from fastapi.security import HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
-
-# 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 # JWT认证方案
 security = HTTPBearer()
@@ -20,15 +18,21 @@ ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """验证密码"""
-    return bool(pwd_context.verify(plain_password, hashed_password))
+# bcrypt rounds - 测试环境使用更少的rounds以提高速度
+_BCRYPT_ROUNDS = 4 if os.getenv("TESTING") == "1" else 12
 
 
 def get_password_hash(password: str) -> str:
-    """获取密码哈希"""
-    return str(pwd_context.hash(password))
+    """使用 bcrypt 生成密码哈希"""
+    salt = bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)
+    hashed: bytes = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """验证密码"""
+    result: bool = bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    return result
 
 
 def get_token_hash(token: str) -> str:

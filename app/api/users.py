@@ -230,10 +230,10 @@ async def change_password(
 
 @router.get("", response_model=BaseResponse[PageResponse[UserResponse]])
 async def get_users(
+    db: DBSession,
+    _current_user: CurrentSuperUser,
     page_query: BasePageQuery = Depends(),
     query_params: UserListQuery = Depends(),
-    db: DBSession = Depends(),
-    _current_user: CurrentSuperUser = Depends(),
 ):
     """
     获取用户列表（分页）- 需要超级管理员权限

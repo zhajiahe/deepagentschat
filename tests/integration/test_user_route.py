@@ -207,28 +207,32 @@ class TestAuthAPI:
 class TestUserAPI:
     """用户管理 API 测试类（需要超级管理员权限）"""
 
-    def test_create_user(self, client: TestClient):
+    def test_create_user(self, client: TestClient, auth_headers: dict):
         """测试创建用户"""
+        import uuid
+
+        unique_id = str(uuid.uuid4())[:8]
         response = client.post(
             "/api/v1/users",
             json={
-                "username": "testuser",
-                "email": "test@example.com",
+                "username": f"testuser_{unique_id}",
+                "email": f"test_{unique_id}@example.com",
                 "nickname": "Test User",
                 "password": "test123456",
                 "is_active": True,
                 "is_superuser": False,
             },
+            headers=auth_headers,
         )
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert data["success"] is True
         assert data["code"] == 201
-        assert data["data"]["username"] == "testuser"
-        assert data["data"]["email"] == "test@example.com"
+        assert data["data"]["username"] == f"testuser_{unique_id}"
+        assert data["data"]["email"] == f"test_{unique_id}@example.com"
         assert "id" in data["data"]
 
-    def test_create_user_duplicate_username(self, client: TestClient):
+    def test_create_user_duplicate_username(self, client: TestClient, auth_headers: dict):
         """测试创建重复用户名的用户"""
         # 第一次创建
         client.post(
@@ -239,6 +243,7 @@ class TestUserAPI:
                 "nickname": "User 1",
                 "password": "test123456",
             },
+            headers=auth_headers,
         )
         # 第二次创建相同用户名
         response = client.post(
@@ -249,11 +254,12 @@ class TestUserAPI:
                 "nickname": "User 2",
                 "password": "test123456",
             },
+            headers=auth_headers,
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "用户名已存在" in response.json()["detail"]
 
-    def test_create_user_invalid_email(self, client: TestClient):
+    def test_create_user_invalid_email(self, client: TestClient, auth_headers: dict):
         """测试创建用户时邮箱格式错误"""
         response = client.post(
             "/api/v1/users",
@@ -263,10 +269,11 @@ class TestUserAPI:
                 "nickname": "Test User",
                 "password": "test123456",
             },
+            headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    def test_get_users(self, client: TestClient):
+    def test_get_users(self, client: TestClient, auth_headers: dict):
         """测试获取用户列表"""
         # 创建几个测试用户
         for i in range(3):
@@ -278,17 +285,18 @@ class TestUserAPI:
                     "nickname": f"User {i}",
                     "password": "test123456",
                 },
+                headers=auth_headers,
             )
 
         # 获取用户列表
-        response = client.get("/api/v1/users")
+        response = client.get("/api/v1/users", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
         assert data["data"]["total"] >= 3
         assert len(data["data"]["items"]) >= 3
 
-    def test_get_users_with_pagination(self, client: TestClient):
+    def test_get_users_with_pagination(self, client: TestClient, auth_headers: dict):
         """测试分页获取用户列表"""
         # 创建10个用户
         for i in range(10):
@@ -300,17 +308,18 @@ class TestUserAPI:
                     "nickname": f"Page User {i}",
                     "password": "test123456",
                 },
+                headers=auth_headers,
             )
 
         # 测试分页
-        response = client.get("/api/v1/users?page_num=1&page_size=5")
+        response = client.get("/api/v1/users?page_num=1&page_size=5", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["data"]["page_num"] == 1
         assert data["data"]["page_size"] == 5
         assert len(data["data"]["items"]) == 5
 
-    def test_get_users_with_keyword_search(self, client: TestClient):
+    def test_get_users_with_keyword_search(self, client: TestClient, auth_headers: dict):
         """测试关键词搜索"""
         # 创建测试用户
         client.post(
@@ -321,17 +330,18 @@ class TestUserAPI:
                 "nickname": "Search User",
                 "password": "test123456",
             },
+            headers=auth_headers,
         )
 
         # 搜索用户
-        response = client.get("/api/v1/users?keyword=search")
+        response = client.get("/api/v1/users?keyword=search", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
         assert data["data"]["total"] >= 1
         assert any("search" in item["username"].lower() for item in data["data"]["items"])
 
-    def test_get_user_by_id(self, client: TestClient):
+    def test_get_user_by_id(self, client: TestClient, auth_headers: dict):
         """测试根据ID获取用户"""
         # 创建用户
         create_response = client.post(
@@ -342,54 +352,61 @@ class TestUserAPI:
                 "nickname": "Get User",
                 "password": "test123456",
             },
+            headers=auth_headers,
         )
         user_id = create_response.json()["data"]["id"]
 
         # 获取用户
-        response = client.get(f"/api/v1/users/{user_id}")
+        response = client.get(f"/api/v1/users/{user_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
         assert data["data"]["id"] == user_id
         assert data["data"]["username"] == "getuser"
 
-    def test_get_user_not_found(self, client: TestClient):
+    def test_get_user_not_found(self, client: TestClient, auth_headers: dict):
         """测试获取不存在的用户"""
-        response = client.get("/api/v1/users/99999")
+        response = client.get("/api/v1/users/99999", headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "用户不存在" in response.json()["detail"]
 
-    def test_update_user(self, client: TestClient):
+    def test_update_user(self, client: TestClient, auth_headers: dict):
         """测试更新用户"""
+        import uuid
+
+        unique_id = str(uuid.uuid4())[:8]
         # 创建用户
         create_response = client.post(
             "/api/v1/users",
             json={
-                "username": "updateuser",
-                "email": "update@example.com",
+                "username": f"updateuser_{unique_id}",
+                "email": f"update_{unique_id}@example.com",
                 "nickname": "Update User",
                 "password": "test123456",
             },
+            headers=auth_headers,
         )
         user_id = create_response.json()["data"]["id"]
 
         # 更新用户
+        updated_email = f"updated_{unique_id}@example.com"
         response = client.put(
             f"/api/v1/users/{user_id}",
-            json={"nickname": "Updated User", "email": "updated@example.com"},
+            json={"nickname": "Updated User", "email": updated_email},
+            headers=auth_headers,
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
         assert data["data"]["nickname"] == "Updated User"
-        assert data["data"]["email"] == "updated@example.com"
+        assert data["data"]["email"] == updated_email
 
-    def test_update_user_not_found(self, client: TestClient):
+    def test_update_user_not_found(self, client: TestClient, auth_headers: dict):
         """测试更新不存在的用户"""
-        response = client.put("/api/v1/users/99999", json={"nickname": "Test"})
+        response = client.put("/api/v1/users/99999", json={"nickname": "Test"}, headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_delete_user(self, client: TestClient):
+    def test_delete_user(self, client: TestClient, auth_headers: dict):
         """测试删除用户"""
         # 创建用户
         create_response = client.post(
@@ -400,19 +417,20 @@ class TestUserAPI:
                 "nickname": "Delete User",
                 "password": "test123456",
             },
+            headers=auth_headers,
         )
         user_id = create_response.json()["data"]["id"]
 
         # 删除用户
-        response = client.delete(f"/api/v1/users/{user_id}")
+        response = client.delete(f"/api/v1/users/{user_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["success"] is True
 
         # 验证用户已删除
-        get_response = client.get(f"/api/v1/users/{user_id}")
+        get_response = client.get(f"/api/v1/users/{user_id}", headers=auth_headers)
         assert get_response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_delete_user_not_found(self, client: TestClient):
+    def test_delete_user_not_found(self, client: TestClient, auth_headers: dict):
         """测试删除不存在的用户"""
-        response = client.delete("/api/v1/users/99999")
+        response = client.delete("/api/v1/users/99999", headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND
