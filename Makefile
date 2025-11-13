@@ -32,6 +32,10 @@ format: ## 格式化代码
 	@echo "🎨 格式化代码..."
 	uv run ruff format app/ tests/
 
+type-check: ## 类型检查
+	@echo "🔍 类型检查..."
+	uv run mypy app/
+
 db-migrate: ## 创建数据库迁移 (make db-migrate msg="xxx")
 	@if [ -z "$(msg)" ]; then echo "❌ 需要提供消息: make db-migrate msg=\"描述\""; exit 1; fi
 	uv run alembic revision --autogenerate -m "$(msg)"
