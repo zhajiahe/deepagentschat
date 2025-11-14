@@ -6,6 +6,9 @@ from alembic import context
 
 # Import settings and models
 from app.core.config import settings
+
+# Import all models to ensure they are registered
+from app.models import Conversation, Message, User  # noqa: F401
 from app.models.base import Base
 
 # this is the Alembic Config object, which provides
@@ -13,7 +16,9 @@ from app.models.base import Base
 config = context.config
 
 # Set database URL from settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Convert async URL to sync URL for Alembic
+database_url = settings.DATABASE_URL.replace("sqlite+aiosqlite://", "sqlite://")
+config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

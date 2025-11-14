@@ -4,6 +4,21 @@ Pydantic Schema 模块
 用于 API 请求和响应的数据验证和序列化
 """
 
+from app.schemas.chat import ChatRequest, ChatResponse, MessageResponse
+from app.schemas.conversation import (
+    CheckpointResponse,
+    ConversationCreate,
+    ConversationDetailResponse,
+    ConversationExportResponse,
+    ConversationImportRequest,
+    ConversationResponse,
+    ConversationUpdate,
+    SearchRequest,
+    SearchResponse,
+    StateResponse,
+    StateUpdateRequest,
+    UserStatsResponse,
+)
 from app.schemas.user import PasswordChange, UserCreate, UserListQuery, UserResponse, UserUpdate
 
 __all__ = [
@@ -12,4 +27,19 @@ __all__ = [
     "UserResponse",
     "UserListQuery",
     "PasswordChange",
+    "ChatRequest",
+    "ChatResponse",
+    "MessageResponse",
+    "ConversationCreate",
+    "ConversationUpdate",
+    "ConversationResponse",
+    "ConversationDetailResponse",
+    "ConversationExportResponse",
+    "ConversationImportRequest",
+    "StateResponse",
+    "CheckpointResponse",
+    "StateUpdateRequest",
+    "SearchRequest",
+    "SearchResponse",
+    "UserStatsResponse",
 ]
