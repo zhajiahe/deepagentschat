@@ -48,8 +48,8 @@ async def lifespan(app: FastAPI):
         # 初始化 LangGraph checkpointer（使用配置中的路径）
         checkpointer = await init_checkpointer(settings.CHECKPOINT_DB_PATH)
 
-        # 编译 LangGraph 图
-        compiled_graph = create_graph().compile(checkpointer=checkpointer)
+        # 创建 Agent 图（传入 checkpointer 以支持状态持久化）
+        compiled_graph = create_graph(checkpointer=checkpointer)
         logger.info("✅ LangGraph 图编译成功")
 
     except Exception as e:

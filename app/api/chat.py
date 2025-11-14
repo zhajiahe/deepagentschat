@@ -106,7 +106,6 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
                 content=str(msg.content) if msg.content else "",
                 meta_data={
                     "type": msg_type,
-                    "duration_ms": duration if role == "assistant" else None,
                     **(msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}),
                 },
             )

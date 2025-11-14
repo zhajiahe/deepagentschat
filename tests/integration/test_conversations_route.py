@@ -4,6 +4,8 @@
 包含会话 CRUD、状态管理、导出导入等功能的真实集成测试
 """
 
+import uuid
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -33,10 +35,13 @@ class TestConversationCRUD:
         """测试获取会话列表"""
         from app.models import Conversation
 
-        # 创建几个会话
+        # 创建几个会话（使用唯一 ID）
+        thread_ids = []
         for i in range(3):
+            thread_id = str(uuid.uuid4())
+            thread_ids.append(thread_id)
             conversation = Conversation(
-                thread_id=f"test-thread-{i}",
+                thread_id=thread_id,
                 user_id=1,
                 title=f"Test Conversation {i}",
                 meta_data={},
@@ -56,9 +61,10 @@ class TestConversationCRUD:
         """测试获取会话详情"""
         from app.models import Conversation, Message
 
-        # 创建会话和消息
+        # 创建会话和消息（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-detail-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Test Detail",
             meta_data={},
@@ -66,7 +72,7 @@ class TestConversationCRUD:
         db.add(conversation)
 
         message = Message(
-            thread_id="test-detail-thread",
+            thread_id=thread_id,
             role="user",
             content="Test message",
             meta_data={},
@@ -75,12 +81,12 @@ class TestConversationCRUD:
         await db.commit()
 
         # 获取详情
-        response = client.get("/api/v1/conversations/test-detail-thread", headers=auth_headers)
+        response = client.get(f"/api/v1/conversations/{thread_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "conversation" in data
         assert "messages" in data
-        assert data["conversation"]["thread_id"] == "test-detail-thread"
+        assert data["conversation"]["thread_id"] == thread_id
         assert len(data["messages"]) == 1
 
     @pytest.mark.asyncio
@@ -88,9 +94,10 @@ class TestConversationCRUD:
         """测试更新会话"""
         from app.models import Conversation
 
-        # 创建会话
+        # 创建会话（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-update-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Original Title",
             meta_data={},
@@ -100,7 +107,7 @@ class TestConversationCRUD:
 
         # 更新会话
         response = client.patch(
-            "/api/v1/conversations/test-update-thread",
+            f"/api/v1/conversations/{thread_id}",
             json={"title": "Updated Title", "metadata": {"updated": True}},
             headers=auth_headers,
         )
@@ -109,7 +116,7 @@ class TestConversationCRUD:
         assert data["status"] == "updated"
 
         # 验证更新
-        response = client.get("/api/v1/conversations/test-update-thread", headers=auth_headers)
+        response = client.get(f"/api/v1/conversations/{thread_id}", headers=auth_headers)
         assert response.json()["conversation"]["title"] == "Updated Title"
 
     @pytest.mark.asyncio
@@ -118,9 +125,10 @@ class TestConversationCRUD:
 
         from app.models import Conversation
 
-        # 创建会话
+        # 创建会话（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-delete-thread",
+            thread_id=thread_id,
             user_id=1,
             title="To Delete",
             meta_data={},
@@ -129,14 +137,14 @@ class TestConversationCRUD:
         await db.commit()
 
         # 软删除
-        response = client.delete("/api/v1/conversations/test-delete-thread", headers=auth_headers)
+        response = client.delete(f"/api/v1/conversations/{thread_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
 
         # 验证会话已软删除（不在列表中）
         response = client.get("/api/v1/conversations", headers=auth_headers)
         conversations = response.json()
-        thread_ids = [c["thread_id"] for c in conversations]
-        assert "test-delete-thread" not in thread_ids
+        thread_ids_list = [c["thread_id"] for c in conversations]
+        assert thread_id not in thread_ids_list
 
     @pytest.mark.asyncio
     async def test_delete_conversation_hard(self, client: TestClient, auth_headers: dict, db):
@@ -145,9 +153,10 @@ class TestConversationCRUD:
 
         from app.models import Conversation, Message
 
-        # 创建会话和消息
+        # 创建会话和消息（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-hard-delete-thread",
+            thread_id=thread_id,
             user_id=1,
             title="To Hard Delete",
             meta_data={},
@@ -155,7 +164,7 @@ class TestConversationCRUD:
         db.add(conversation)
 
         message = Message(
-            thread_id="test-hard-delete-thread",
+            thread_id=thread_id,
             role="user",
             content="Test",
             meta_data={},
@@ -164,14 +173,14 @@ class TestConversationCRUD:
         await db.commit()
 
         # 硬删除
-        response = client.delete("/api/v1/conversations/test-hard-delete-thread?hard_delete=true", headers=auth_headers)
+        response = client.delete(f"/api/v1/conversations/{thread_id}?hard_delete=true", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
 
         # 验证会话和消息都已删除
-        result = await db.execute(select(Conversation).where(Conversation.thread_id == "test-hard-delete-thread"))
+        result = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
         assert result.scalar_one_or_none() is None
 
-        result = await db.execute(select(Message).where(Message.thread_id == "test-hard-delete-thread"))
+        result = await db.execute(select(Message).where(Message.thread_id == thread_id))
         assert len(result.scalars().all()) == 0
 
     def test_get_conversation_not_found(self, client: TestClient, auth_headers: dict):
@@ -207,9 +216,10 @@ class TestConversationMessages:
         """测试获取消息列表"""
         from app.models import Conversation, Message
 
-        # 创建会话和消息
+        # 创建会话和消息（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-messages-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Test Messages",
             meta_data={},
@@ -218,7 +228,7 @@ class TestConversationMessages:
 
         for i in range(5):
             message = Message(
-                thread_id="test-messages-thread",
+                thread_id=thread_id,
                 role="user" if i % 2 == 0 else "assistant",
                 content=f"Message {i}",
                 meta_data={},
@@ -227,7 +237,7 @@ class TestConversationMessages:
         await db.commit()
 
         # 获取消息
-        response = client.get("/api/v1/conversations/test-messages-thread/messages", headers=auth_headers)
+        response = client.get(f"/api/v1/conversations/{thread_id}/messages", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         messages = response.json()
         assert len(messages) == 5
@@ -237,9 +247,10 @@ class TestConversationMessages:
         """测试消息分页"""
         from app.models import Conversation, Message
 
-        # 创建会话和消息
+        # 创建会话和消息（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-pagination-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Test Pagination",
             meta_data={},
@@ -248,7 +259,7 @@ class TestConversationMessages:
 
         for i in range(10):
             message = Message(
-                thread_id="test-pagination-thread",
+                thread_id=thread_id,
                 role="user",
                 content=f"Message {i}",
                 meta_data={},
@@ -257,17 +268,13 @@ class TestConversationMessages:
         await db.commit()
 
         # 获取第一页
-        response = client.get(
-            "/api/v1/conversations/test-pagination-thread/messages?skip=0&limit=5", headers=auth_headers
-        )
+        response = client.get(f"/api/v1/conversations/{thread_id}/messages?skip=0&limit=5", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         messages = response.json()
         assert len(messages) == 5
 
         # 获取第二页
-        response = client.get(
-            "/api/v1/conversations/test-pagination-thread/messages?skip=5&limit=5", headers=auth_headers
-        )
+        response = client.get(f"/api/v1/conversations/{thread_id}/messages?skip=5&limit=5", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         messages = response.json()
         assert len(messages) == 5
@@ -281,9 +288,10 @@ class TestConversationState:
         """测试获取会话状态"""
         from app.models import Conversation
 
-        # 创建会话
+        # 创建会话（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-state-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Test State",
             meta_data={},
@@ -292,7 +300,7 @@ class TestConversationState:
         await db.commit()
 
         # 获取状态（可能为空，因为还没有执行过图）
-        response = client.get("/api/v1/conversations/test-state-thread/state", headers=auth_headers)
+        response = client.get(f"/api/v1/conversations/{thread_id}/state", headers=auth_headers)
         # 状态可能不存在，所以可能是 404 或 200
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_404_NOT_FOUND]
 
@@ -301,9 +309,10 @@ class TestConversationState:
         """测试获取检查点列表"""
         from app.models import Conversation
 
-        # 创建会话
+        # 创建会话（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-checkpoints-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Test Checkpoints",
             meta_data={},
@@ -312,7 +321,7 @@ class TestConversationState:
         await db.commit()
 
         # 获取检查点
-        response = client.get("/api/v1/conversations/test-checkpoints-thread/checkpoints", headers=auth_headers)
+        response = client.get(f"/api/v1/conversations/{thread_id}/checkpoints", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "thread_id" in data
@@ -328,9 +337,10 @@ class TestConversationExportImport:
         """测试导出会话"""
         from app.models import Conversation, Message
 
-        # 创建会话和消息
+        # 创建会话和消息（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-export-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Test Export",
             meta_data={"key": "value"},
@@ -339,7 +349,7 @@ class TestConversationExportImport:
 
         for i in range(3):
             message = Message(
-                thread_id="test-export-thread",
+                thread_id=thread_id,
                 role="user" if i % 2 == 0 else "assistant",
                 content=f"Message {i}",
                 meta_data={},
@@ -348,7 +358,7 @@ class TestConversationExportImport:
         await db.commit()
 
         # 导出会话
-        response = client.get("/api/v1/conversations/test-export-thread/export", headers=auth_headers)
+        response = client.get(f"/api/v1/conversations/{thread_id}/export", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "conversation" in data
@@ -400,9 +410,10 @@ class TestConversationReset:
 
         from app.models import Conversation, Message
 
-        # 创建会话和多个消息
+        # 创建会话和多个消息（使用唯一 ID）
+        thread_id = str(uuid.uuid4())
         conversation = Conversation(
-            thread_id="test-reset-multi-thread",
+            thread_id=thread_id,
             user_id=1,
             title="Test Reset Multi",
             meta_data={},
@@ -411,7 +422,7 @@ class TestConversationReset:
 
         for i in range(10):
             message = Message(
-                thread_id="test-reset-multi-thread",
+                thread_id=thread_id,
                 role="user" if i % 2 == 0 else "assistant",
                 content=f"Message {i}",
                 meta_data={},
@@ -420,13 +431,13 @@ class TestConversationReset:
         await db.commit()
 
         # 重置会话
-        response = client.post("/api/v1/conversations/test-reset-multi-thread/reset", headers=auth_headers)
+        response = client.post(f"/api/v1/conversations/{thread_id}/reset", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["status"] == "reset"
         assert "10" in data["message"]  # 应该显示删除了10条消息
 
         # 验证消息已删除
-        result = await db.execute(select(Message).where(Message.thread_id == "test-reset-multi-thread"))
+        result = await db.execute(select(Message).where(Message.thread_id == thread_id))
         messages = result.scalars().all()
         assert len(messages) == 0

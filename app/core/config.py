@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     model_config = ConfigDict(
         env_file=".env",
         case_sensitive=True,
+        extra="ignore",  # 忽略未定义的额外环境变量
     )  # type: ignore[typeddict-unknown-key]
 
 
