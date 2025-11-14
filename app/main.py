@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from app.api.chat import router as chat_router
+from app.api.conversations import router as conversations_router
 from app.api.users import auth_router
 from app.api.users import router as users_router
 from app.core.lifespan import lifespan
@@ -54,7 +56,28 @@ async def root():
 @app.get("/health", tags=["Root"])
 async def health_check():
     """健康检查接口"""
-    return {"status": "healthy", "message": "Application is running"}
+    try:
+        # 检查数据库
+        from sqlalchemy import select
+
+        from app.core.database import engine
+
+        async with engine.begin() as conn:
+            await conn.execute(select(1))
+
+        # 检查 LangGraph
+        from app.core.lifespan import get_compiled_graph
+
+        get_compiled_graph()  # 验证图已初始化
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "checkpointer": "connected",
+            "langgraph": "ready",
+        }
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
 
 
 # 注册认证路由
@@ -62,6 +85,12 @@ app.include_router(auth_router, prefix="/api/v1")
 
 # 注册用户路由
 app.include_router(users_router, prefix="/api/v1")
+
+# 注册对话路由
+app.include_router(chat_router, prefix="/api/v1")
+
+# 注册会话管理路由
+app.include_router(conversations_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

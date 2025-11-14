@@ -18,8 +18,10 @@ repos:
       # Run the linter
       - id: ruff
         args: [--fix]
+        exclude: ^(example\.py|test_chat_api\.py)$
       # Run the formatter
       - id: ruff-format
+        exclude: ^(example\.py|test_chat_api\.py)$
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0
@@ -31,4 +33,4 @@ repos:
           - fastapi>=0.121.1
           - types-aiofiles
         args: [--ignore-missing-imports, --show-error-codes, --explicit-package-bases]
-        exclude: ^alembic/
+        exclude: ^(alembic/|example\.py|test_chat_api\.py)

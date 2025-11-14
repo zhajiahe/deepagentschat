@@ -1,4 +1,4 @@
-# Ragflow
+# Fastapi Template Project
 
 ## Rule for Feedback
 1. 在任何流程、任务、对话进行时，无论是询问、回复、或完成阶段性任务，皆必须调用 MCP mcp-feedback-enhanced。
@@ -33,3 +33,275 @@
 
 ## Rule for Test
 当实现测试脚本后，先执行测试后再编写文档
+
+# Project Structure
+
+## 项目概述
+
+这是一个基于 FastAPI + SQLAlchemy 2.0+ 的现代化后端项目模板，集成了用户认证、数据库迁移、日志系统、代码质量检查等完整功能。现已扩展支持 LangGraph 对话系统，提供完整的会话管理和状态持久化能力。
+
+## 核心技术栈
+
+- **FastAPI**: 现代化的异步 Web 框架
+- **SQLAlchemy 2.0+**: 异步 ORM
+- **Alembic**: 数据库迁移工具
+- **Pydantic**: 数据验证和设置管理
+- **LangGraph**: 对话流程编排和状态管理
+- **LangChain**: LLM 应用开发框架
+- **Loguru**: 增强的日志系统
+- **JWT**: 用户认证和授权
+- **Bcrypt**: 密码加密
+
+## 项目结构详解
+
+```
+fastapi-template/
+├── app/                          # 应用核心代码
+│   ├── api/                      # API 路由层
+│   │   ├── users.py              # 用户管理 API
+│   │   ├── chat.py               # 对话 API (LangGraph)
+│   │   └── conversations.py     # 会话管理 API
+│   ├── core/                     # 核心配置模块
+│   │   ├── config.py             # 配置管理 (环境变量)
+│   │   ├── database.py           # 数据库连接和会话管理
+│   │   ├── deps.py               # 依赖注入 (认证、权限等)
+│   │   ├── lifespan.py           # 应用生命周期管理
+│   │   ├── security.py           # JWT 认证和密码加密
+│   │   ├── graph.py              # LangGraph 图定义
+│   │   └── checkpointer.py       # LangGraph 检查点管理
+│   ├── middleware/               # 中间件
+│   │   └── logging.py            # 请求日志中间件
+│   ├── models/                   # SQLAlchemy 数据库模型
+│   │   ├── base.py               # 基础模型和 Mixin
+│   │   ├── user.py               # 用户模型
+│   │   ├── conversation.py       # 会话模型
+│   │   ├── message.py            # 消息模型
+│   │   └── execution_log.py      # 执行日志模型
+│   ├── schemas/                  # Pydantic 数据模型
+│   │   ├── user.py               # 用户 Schema
+│   │   ├── chat.py               # 对话 Schema
+│   │   └── conversation.py       # 会话 Schema
+│   ├── utils/                    # 工具函数
+│   └── main.py                   # 应用入口和路由注册
+├── alembic/                      # 数据库迁移
+│   ├── versions/                 # 迁移脚本版本
+│   └── env.py                    # Alembic 配置
+├── scripts/                      # 脚本工具
+│   ├── create_superuser.py       # 创建超级管理员
+│   └── init_db.py                # 初始化数据库
+├── tests/                        # 测试代码
+│   ├── integration/              # 集成测试
+│   └── conftest.py               # Pytest 配置
+├── logs/                         # 日志目录
+├── .env                          # 环境变量配置
+├── pyproject.toml                # 项目配置和依赖
+├── Makefile                      # 常用命令集合
+└── README.md                     # 项目说明文档
+```
+
+## 核心功能模块
+
+### 1. 用户认证系统 (app/api/users.py, app/core/security.py)
+
+- ✅ 用户注册与登录
+- ✅ JWT 双令牌认证 (Access Token + Refresh Token)
+- ✅ 密码加密 (Bcrypt)
+- ✅ 基于角色的权限控制 (RBAC)
+- ✅ 用户 CRUD 操作
+- ✅ 分页查询和搜索
+
+### 2. LangGraph 对话系统 (app/api/chat.py, app/core/graph.py)
+
+- ✅ 异步对话接口 (支持流式和非流式)
+- ✅ 会话管理 (创建、查询、更新、删除)
+- ✅ 消息历史记录
+- ✅ 状态持久化 (AsyncSqliteSaver)
+- ✅ 检查点管理 (支持时间旅行)
+- ✅ 执行日志记录
+- ✅ 会话导出/导入
+- ✅ 全文搜索
+
+### 3. 数据库层 (app/models/, app/core/database.py)
+
+- ✅ SQLAlchemy 2.0+ 异步 ORM
+- ✅ Alembic 数据库迁移
+- ✅ 通用基础模型 (BaseTableMixin)
+  - 自动 ID 生成
+  - 创建/更新时间戳
+  - 创建人/更新人
+  - 逻辑删除支持
+- ✅ 连接池管理
+- ✅ 自动事务管理
+
+### 4. 日志系统 (app/middleware/logging.py)
+
+- ✅ Loguru 结构化日志
+- ✅ 请求/响应日志中间件
+- ✅ 日志文件自动轮转
+- ✅ 错误日志单独记录
+- ✅ 控制台彩色输出
+- ✅ 请求 ID 追踪
+
+### 5. 代码质量保证
+
+- ✅ Ruff 代码检查和格式化
+- ✅ MyPy 静态类型检查
+- ✅ Pytest 单元测试和集成测试
+- ✅ Pre-commit Git 钩子
+- ✅ 测试覆盖率报告
+
+## API 端点概览
+
+### 认证相关
+- `POST /api/v1/auth/register` - 用户注册
+- `POST /api/v1/auth/login` - 用户登录
+- `POST /api/v1/auth/refresh` - 刷新令牌
+- `GET /api/v1/auth/me` - 获取当前用户信息
+- `PUT /api/v1/auth/password` - 修改密码
+
+### 用户管理 (需要管理员权限)
+- `GET /api/v1/users` - 获取用户列表 (分页)
+- `GET /api/v1/users/{user_id}` - 获取用户详情
+- `PUT /api/v1/users/{user_id}` - 更新用户信息
+- `DELETE /api/v1/users/{user_id}` - 删除用户
+
+### 对话系统
+- `POST /api/v1/chat` - 发送消息 (非流式)
+- `POST /api/v1/chat/stream` - 发送消息 (流式)
+- `POST /api/v1/conversations` - 创建会话
+- `GET /api/v1/conversations` - 获取会话列表
+- `GET /api/v1/conversations/{thread_id}` - 获取会话详情
+- `PATCH /api/v1/conversations/{thread_id}` - 更新会话
+- `DELETE /api/v1/conversations/{thread_id}` - 删除会话
+- `GET /api/v1/conversations/{thread_id}/messages` - 获取消息历史
+- `GET /api/v1/conversations/{thread_id}/state` - 获取会话状态
+- `GET /api/v1/conversations/{thread_id}/checkpoints` - 获取检查点历史
+- `POST /api/v1/conversations/{thread_id}/update-state` - 更新会话状态
+- `GET /api/v1/conversations/{thread_id}/export` - 导出会话
+- `POST /api/v1/conversations/import` - 导入会话
+- `GET /api/v1/search` - 搜索会话和消息
+
+### 系统管理
+- `GET /health` - 健康检查
+- `GET /` - 根路径
+- `GET /docs` - API 文档 (Swagger UI)
+- `GET /redoc` - API 文档 (ReDoc)
+
+## 开发工作流
+
+### 1. 环境设置
+```bash
+# 安装 uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 安装依赖
+uv sync
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件
+```
+
+### 2. 数据库迁移
+```bash
+# 创建迁移
+make db-migrate msg="描述变更"
+
+# 应用迁移
+make db-upgrade
+
+# 回滚迁移
+make db-downgrade
+```
+
+### 3. 代码质量检查
+```bash
+# 代码检查
+make lint
+
+# 自动修复
+make lint-fix
+
+# 类型检查
+make type-check
+
+# 运行测试
+make test
+```
+
+### 4. 启动开发服务器
+```bash
+make dev
+# 或
+uv run uvicorn app.main:app --reload
+```
+
+## 配置说明
+
+### 环境变量 (.env)
+```bash
+# 数据库
+DATABASE_URL=sqlite+aiosqlite:///./test.db
+
+# JWT 配置
+SECRET_KEY=your-secret-key
+REFRESH_SECRET_KEY=your-refresh-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# 应用配置
+APP_NAME=FastAPI-Template
+DEBUG=true
+
+# LangGraph 配置
+CHECKPOINT_DB_PATH=checkpoints.db
+```
+
+## 扩展建议
+
+### 添加新的 API 端点
+1. 在 `app/models/` 创建数据库模型
+2. 在 `app/schemas/` 创建 Pydantic 模型
+3. 在 `app/api/` 创建路由文件
+4. 在 `app/main.py` 注册路由
+5. 创建数据库迁移: `make db-migrate msg="添加新表"`
+6. 编写测试用例
+
+### 集成新的 LLM 提供商
+1. 在 `app/core/graph.py` 中修改 `chatbot` 节点
+2. 添加相应的环境变量配置
+3. 更新 `pyproject.toml` 添加依赖
+
+## 最佳实践
+
+1. **异步优先**: 所有 I/O 操作使用异步
+2. **类型注解**: 使用 Python 类型提示
+3. **依赖注入**: 使用 FastAPI 的 Depends
+4. **错误处理**: 使用 HTTPException 和自定义异常
+5. **日志记录**: 使用 Loguru 记录关键操作
+6. **测试覆盖**: 为核心功能编写测试
+7. **代码审查**: 提交前运行 `make lint` 和 `make type-check`
+
+## 常见问题
+
+### Q: 如何切换到 PostgreSQL?
+A: 修改 `.env` 中的 `DATABASE_URL` 为 `postgresql+asyncpg://user:pass@localhost/db`
+
+### Q: 如何自定义 LangGraph 流程?
+A: 编辑 `app/core/graph.py` 中的 `create_graph()` 函数
+
+### Q: 如何添加新的中间件?
+A: 在 `app/middleware/` 创建中间件，然后在 `app/main.py` 中注册
+
+## 贡献指南
+
+1. Fork 项目
+2. 创建特性分支
+3. 提交变更
+4. 推送到分支
+5. 创建 Pull Request
+
+## 许可证
+
+MIT License
