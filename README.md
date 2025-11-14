@@ -1,93 +1,130 @@
-# FastAPI后端开发实践（0-1）
-> 友情提示：本文含大量AI生成内容
-[https://github.com/zhajiahe/fastapi-template](项目地址)
-## 基础概念
+# 从零到一：构建现代化的 FastAPI + LangGraph 对话系统
 
-### 核心依赖
-FastAPI 构建在以下优秀的库之上：
+> 一个集成了用户认证、LangGraph 对话系统、完整测试和代码质量保证的 FastAPI 后端模板项目
 
-- **Starlette**：负责 Web 部分
-- **Pydantic**：负责数据部分，提供数据验证和设置管理
-- **Uvicorn**：ASGI 服务器，用于运行应用
+## 📖 项目简介
 
-### 建议的依赖
-- **uv**: 极快的Python包管理器
-- **SQLAlchemy**: 数据库ORM，支持异步操作
-- **Alembic**: 数据库迁移工具，类似数据库的Git
-- **Loguru**: 增强的日志工具
-- **Pre-commit**: Git提交前自动检查代码质量
-- **Ruff**: 快速的Python代码检查和格式化工具
-- **MyPy**: Python静态类型检查器
-- **Bcrypt**: 现代化密码加密库
-- **Python-JOSE**: JWT令牌处理
+这是一个基于 FastAPI + SQLAlchemy 2.0 + LangGraph 的现代化后端项目模板。它不仅提供了完整的用户认证系统，还集成了 LangGraph 对话系统，支持会话管理、状态持久化、消息历史等功能。项目采用异步编程范式，遵循最佳实践，包含完整的测试覆盖和代码质量保证工具。
 
-## 项目模板
+### ✨ 核心特性
 
-下面的模板结合异步FastAPI最佳实践，集成数据库迁移、测试、代码检查、类型检查为一体，是推荐的FastAPI项目初始化最佳模板。基于该模板可以进一步增加功能，实现真正的后端服务。
+- 🚀 **现代化技术栈**：FastAPI + SQLAlchemy 2.0 + LangGraph + Pydantic v2
+- 🔐 **完整的认证系统**：JWT 双令牌认证、密码加密、权限管理
+- 💬 **LangGraph 对话系统**：支持流式/非流式对话、会话管理、状态持久化
+- 📊 **数据库管理**：Alembic 迁移、异步 ORM、连接池管理
+- 🧪 **测试覆盖**：集成测试、单元测试、测试覆盖率
+- 🔍 **代码质量**：Ruff、MyPy、Pre-commit 钩子
+- 📝 **结构化日志**：Loguru 日志系统、请求追踪
 
-## 项目结构
+## 🎯 适用场景
+
+这个模板适合以下场景：
+
+- 快速启动 FastAPI 项目，无需从零配置
+- 构建需要用户认证的 Web API 服务
+- 开发基于 LangGraph 的对话/聊天应用
+- 学习 FastAPI 和异步编程最佳实践
+- 作为企业级项目的起点模板
+
+## 🏗️ 技术架构
+
+### 核心技术栈
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| FastAPI | 0.121+ | 现代化 Web 框架 |
+| SQLAlchemy | 2.0+ | 异步 ORM |
+| LangGraph | 1.0+ | 对话流程编排 |
+| LangChain | 1.0+ | LLM 应用开发 |
+| Pydantic | 2.12+ | 数据验证 |
+| Alembic | 1.17+ | 数据库迁移 |
+| Loguru | 0.7+ | 日志系统 |
+| Ruff | 0.14+ | 代码检查 |
+| MyPy | 1.18+ | 类型检查 |
+
+### 项目结构
 
 ```
 fastapi-template/
-├── app/                      # 应用核心代码
-│   ├── api/                  # API路由
-│   │   └── users.py          # 用户相关API
-│   ├── core/                 # 核心配置模块
-│   │   ├── config.py         # 配置管理
-│   │   ├── database.py       # 数据库连接
-│   │   ├── deps.py           # 依赖注入
-│   │   ├── lifespan.py       # 应用生命周期
-│   │   └── security.py       # 安全认证
-│   ├── middleware/           # 中间件
-│   │   └── logging.py        # 日志中间件
-│   ├── models/               # 数据库模型
-│   │   ├── base.py           # 基础模型和响应类
-│   │   └── user.py           # 用户模型
-│   ├── schemas/              # Pydantic模型
-│   │   └── user.py           # 用户Schema
-│   ├── utils/                # 工具函数
-│   └── main.py               # 应用入口
-├── alembic/                  # 数据库迁移
-│   ├── versions/             # 迁移脚本
-│   └── env.py                # Alembic配置
-├── scripts/                  # 脚本工具
-│   ├── create_superuser.py   # 创建超级管理员
-│   └── init_db.py            # 初始化数据库
-├── tests/                    # 测试代码
-│   ├── integration/          # 集成测试
-│   └── conftest.py           # 测试配置
-├── logs/                     # 日志目录
-├── .env                      # 环境变量（需自行创建）
-├── .gitignore               # Git忽略文件
-├── alembic.ini              # Alembic配置
-├── Makefile                 # Make命令集合
-├── pyproject.toml           # 项目配置和依赖
-└── README.md                # 项目说明
+├── app/                          # 应用核心代码
+│   ├── api/                      # API 路由层
+│   │   ├── users.py              # 用户管理 API
+│   │   ├── chat.py               # 对话 API (LangGraph)
+│   │   └── conversations.py     # 会话管理 API
+│   ├── core/                     # 核心配置模块
+│   │   ├── config.py             # 配置管理 (环境变量)
+│   │   ├── database.py           # 数据库连接和会话管理
+│   │   ├── deps.py               # 依赖注入 (认证、权限等)
+│   │   ├── lifespan.py           # 应用生命周期管理
+│   │   ├── security.py           # JWT 认证和密码加密
+│   │   ├── graph.py              # LangGraph 图定义
+│   │   └── checkpointer.py       # LangGraph 检查点管理
+│   ├── middleware/               # 中间件
+│   │   └── logging.py            # 请求日志中间件
+│   ├── models/                   # SQLAlchemy 数据库模型
+│   │   ├── base.py               # 基础模型和 Mixin
+│   │   ├── user.py               # 用户模型
+│   │   ├── conversation.py       # 会话模型
+│   │   ├── message.py            # 消息模型
+│   │   └── execution_log.py      # 执行日志模型
+│   ├── schemas/                  # Pydantic 数据模型
+│   │   ├── user.py               # 用户 Schema
+│   │   ├── chat.py               # 对话 Schema
+│   │   └── conversation.py       # 会话 Schema
+│   ├── utils/                    # 工具函数
+│   │   └── datetime.py           # 日期时间工具
+│   └── main.py                   # 应用入口和路由注册
+├── alembic/                      # 数据库迁移
+│   ├── versions/                 # 迁移脚本版本
+│   └── env.py                    # Alembic 配置
+├── scripts/                      # 脚本工具
+│   ├── create_superuser.py       # 创建超级管理员
+│   └── init_db.py                # 初始化数据库
+├── tests/                        # 测试代码
+│   ├── integration/              # 集成测试
+│   │   ├── test_user_route.py    # 用户 API 测试
+│   │   ├── test_chat_route.py    # 对话 API 测试
+│   │   └── test_conversations_route.py  # 会话 API 测试
+│   └── conftest.py               # Pytest 配置
+├── docs/                         # 文档
+│   └── AsyncSqliteSaver工作原理.md  # LangGraph 检查点原理
+├── logs/                         # 日志目录
+├── .env                          # 环境变量配置
+├── pyproject.toml                # 项目配置和依赖
+├── Makefile                      # 常用命令集合
+└── README.md                     # 项目说明文档
 ```
 
-## 快速开始
+## 🚀 快速开始
 
-### 1. 安装依赖
+### 1. 环境要求
+
+- Python 3.12+
+- uv（推荐的 Python 包管理器）
+
+### 2. 安装依赖
 
 ```bash
-# 安装uv（如果尚未安装）
+# 安装 uv（如果尚未安装）
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 克隆项目并安装依赖
-git clone <your-repo-url>
+# 克隆项目
+git clone https://github.com/zhajiahe/fastapi-template.git
 cd fastapi-template
+
+# 安装依赖
 uv sync
 ```
 
-### 2. 配置环境变量
+### 3. 配置环境变量
 
-创建 `.env` 文件并配置：
+创建 `.env` 文件：
 
 ```bash
 # 数据库配置
 DATABASE_URL=sqlite+aiosqlite:///./test.db
 
-# JWT配置（生产环境务必修改）
+# JWT 配置（生产环境务必修改）
 SECRET_KEY=your-secret-key-change-in-production
 REFRESH_SECRET_KEY=your-refresh-secret-key-change-in-production
 ALGORITHM=HS256
@@ -97,80 +134,128 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 # 应用配置
 APP_NAME=FastAPI-Template
 DEBUG=true
+
+# LangGraph 配置
+CHECKPOINT_DB_PATH=checkpoints.db
 ```
 
-### 3. 初始化数据库
+### 4. 初始化数据库
 
 ```bash
-# 使用Makefile命令
+# 使用 Makefile
 make db-upgrade
 
-# 或直接使用Python脚本
-uv run python scripts/init_db.py
+# 或直接使用 Alembic
+uv run alembic upgrade head
 ```
 
-### 4. 创建超级管理员
+### 5. 创建超级管理员
 
 ```bash
 uv run python scripts/create_superuser.py
 ```
 
-### 5. 启动开发服务器
+### 6. 启动开发服务器
 
 ```bash
-# 使用Makefile
+# 使用 Makefile
 make dev
 
-# 或直接使用uvicorn
+# 或直接使用 uvicorn
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-访问 http://localhost:8000/docs 查看API文档
+访问 http://localhost:8000/docs 查看交互式 API 文档。
 
-## 核心功能
+## 💡 核心功能详解
 
 ### 1. 用户认证系统
 
-- ✅ 用户注册与登录
-- ✅ JWT令牌认证（Access Token + Refresh Token）
-- ✅ 密码加密（Bcrypt）
-- ✅ 用户权限管理（普通用户/超级管理员）
-- ✅ 当前用户信息获取
-- ✅ 密码修改
+项目实现了完整的用户认证和授权系统：
 
-### 2. 用户管理（需超级管理员权限）
+- **用户注册与登录**：支持用户名/邮箱注册，JWT 令牌认证
+- **双令牌机制**：Access Token（短期）和 Refresh Token（长期）
+- **密码安全**：使用 Bcrypt 进行密码加密
+- **权限管理**：支持普通用户和超级管理员角色
+- **用户信息管理**：获取当前用户信息、修改密码等
 
-- ✅ 用户CRUD操作
-- ✅ 分页查询
-- ✅ 关键词搜索（用户名/邮箱/昵称）
-- ✅ 状态过滤（激活状态/管理员权限）
-- ✅ 逻辑删除
+### 2. LangGraph 对话系统
 
-### 3. 数据库特性
+集成了 LangGraph 对话流程编排系统：
 
-- ✅ SQLAlchemy 2.0+ 异步ORM
-- ✅ Alembic数据库迁移
-- ✅ 通用基础模型（包含ID、创建时间、更新时间、逻辑删除）
-- ✅ 连接池管理
-- ✅ 自动事务管理
+- **异步对话接口**：支持流式和非流式两种模式
+- **会话管理**：创建、查询、更新、删除会话
+- **消息历史**：完整的消息记录和查询功能
+- **状态持久化**：使用 AsyncSqliteSaver 持久化对话状态
+- **检查点管理**：支持时间旅行、状态恢复
+- **会话导出/导入**：支持会话数据的导出和导入
+- **全文搜索**：支持会话和消息的全文搜索
+
+### 3. 数据库层
+
+采用 SQLAlchemy 2.0+ 异步 ORM：
+
+- **异步操作**：所有数据库操作都是异步的，不阻塞事件循环
+- **连接池管理**：自动管理数据库连接池
+- **事务管理**：自动处理事务提交和回滚
+- **通用基础模型**：包含 ID、创建时间、更新时间、逻辑删除等通用字段
+- **数据库迁移**：使用 Alembic 进行版本化数据库迁移
 
 ### 4. 代码质量保证
 
-- ✅ Ruff代码检查和格式化
-- ✅ MyPy类型检查
-- ✅ Pytest单元测试和集成测试
-- ✅ 测试覆盖率支持
-- ✅ Pre-commit钩子
+项目集成了完整的代码质量工具链：
+
+- **Ruff**：快速的代码检查和格式化工具
+- **MyPy**：静态类型检查，确保类型安全
+- **Pytest**：单元测试和集成测试框架
+- **Pre-commit**：Git 提交前自动运行检查
+- **测试覆盖率**：支持生成测试覆盖率报告
 
 ### 5. 日志系统
 
-- ✅ Loguru结构化日志
-- ✅ 请求日志中间件
-- ✅ 日志文件自动轮转
-- ✅ 错误日志单独记录
-- ✅ 控制台彩色输出
+使用 Loguru 实现结构化日志：
 
-## 常用命令
+- **结构化日志**：JSON 格式的日志输出
+- **请求追踪**：每个请求都有唯一的请求 ID
+- **日志轮转**：自动按大小和时间轮转日志文件
+- **错误日志**：错误日志单独记录
+- **彩色输出**：控制台输出支持彩色显示
+
+## 📚 API 端点概览
+
+### 认证相关
+
+- `POST /api/v1/auth/register` - 用户注册
+- `POST /api/v1/auth/login` - 用户登录
+- `POST /api/v1/auth/refresh` - 刷新令牌
+- `GET /api/v1/auth/me` - 获取当前用户信息
+- `PUT /api/v1/auth/password` - 修改密码
+
+### 用户管理（需要管理员权限）
+
+- `GET /api/v1/users` - 获取用户列表（分页）
+- `GET /api/v1/users/{user_id}` - 获取用户详情
+- `PUT /api/v1/users/{user_id}` - 更新用户信息
+- `DELETE /api/v1/users/{user_id}` - 删除用户
+
+### 对话系统
+
+- `POST /api/v1/chat` - 发送消息（非流式）
+- `POST /api/v1/chat/stream` - 发送消息（流式）
+- `POST /api/v1/conversations` - 创建会话
+- `GET /api/v1/conversations` - 获取会话列表
+- `GET /api/v1/conversations/{thread_id}` - 获取会话详情
+- `PATCH /api/v1/conversations/{thread_id}` - 更新会话
+- `DELETE /api/v1/conversations/{thread_id}` - 删除会话
+- `POST /api/v1/conversations/{thread_id}/reset` - 重置会话
+- `GET /api/v1/conversations/{thread_id}/messages` - 获取消息历史
+- `GET /api/v1/conversations/{thread_id}/state` - 获取会话状态
+- `GET /api/v1/conversations/{thread_id}/checkpoints` - 获取检查点历史
+- `GET /api/v1/conversations/{thread_id}/export` - 导出会话
+- `POST /api/v1/conversations/import` - 导入会话
+- `GET /api/v1/search` - 搜索会话和消息
+
+## 🛠️ 常用命令
 
 项目使用 Makefile 简化常用操作：
 
@@ -189,4 +274,63 @@ make db-downgrade  # 降级数据库
 make clean         # 清理临时文件
 ```
 
+## 🧪 运行测试
+
+```bash
+# 运行所有测试
+make test
+
+# 运行特定测试文件
+pytest tests/integration/test_chat_route.py -v
+
+# 运行测试并显示覆盖率
+pytest --cov=app --cov-report=html
+```
+
+## 📖 文档
+
+- [AsyncSqliteSaver 工作原理](./docs/AsyncSqliteSaver工作原理.md) - 详细说明 LangGraph 检查点机制
+- [API 文档](http://localhost:8000/docs) - 启动服务后访问交互式 API 文档
+- [ReDoc](http://localhost:8000/redoc) - 替代的 API 文档格式
+
+## 🔧 开发指南
+
+### 添加新的 API 端点
+
+1. 在 `app/models/` 创建数据库模型
+2. 在 `app/schemas/` 创建 Pydantic 模型
+3. 在 `app/api/` 创建路由文件
+4. 在 `app/main.py` 注册路由
+5. 创建数据库迁移：`make db-migrate msg="添加新表"`
+6. 编写测试用例
+
+### 集成新的 LLM 提供商
+
+1. 在 `app/core/graph.py` 中修改 `chatbot` 节点
+2. 添加相应的环境变量配置
+3. 更新 `pyproject.toml` 添加依赖
+
+### 自定义 LangGraph 流程
+
+编辑 `app/core/graph.py` 中的 `create_graph()` 函数，定义你的对话流程。
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📄 许可证
+
+MIT License
+
+## 🙏 致谢
+
+- [FastAPI](https://fastapi.tiangolo.com/) - 现代化的 Python Web 框架
+- [LangGraph](https://langchain-ai.github.io/langgraph/) - 对话流程编排框架
+- [SQLAlchemy](https://www.sqlalchemy.org/) - Python SQL 工具包和 ORM
+- [Pydantic](https://docs.pydantic.dev/) - 数据验证库
+
+---
+
 **Happy Coding! 🚀**
+
+项目地址：[https://github.com/zhajiahe/fastapi-template](https://github.com/zhajiahe/fastapi-template)
