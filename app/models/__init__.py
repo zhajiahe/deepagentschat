@@ -8,6 +8,7 @@ from app.models.base import Base, BasePageQuery, BaseResponse, BaseTableMixin, P
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
+from app.models.user_settings import UserSettings
 
 __all__ = [
     "Base",
@@ -18,6 +19,7 @@ __all__ = [
     "Token",
     "TokenPayload",
     "User",
+    "UserSettings",
     "Conversation",
     "Message",
 ]

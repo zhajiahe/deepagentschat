@@ -4,6 +4,7 @@ pytest 全局配置文件
 """
 
 import os
+import uuid
 from collections.abc import AsyncGenerator, Generator
 
 import pytest
@@ -152,8 +153,10 @@ async def async_client(override_get_db) -> AsyncGenerator[AsyncClient, None]:
 # ============ 认证 Fixtures ============
 
 # 缓存superuser token以加速测试
+# 注意：由于 user_id 改为 UUID，需要清除旧 token 缓存
 _cached_superuser_token: str | None = None
 _cached_hashed_password: str | None = None
+_cached_user_id: uuid.UUID | None = None
 
 
 @pytest.fixture(scope="session")
@@ -176,6 +179,8 @@ async def superuser_token(client: TestClient, db: AsyncSession, cached_admin_pas
 
     from app.models.user import User
 
+    global _cached_user_id
+
     # 检查是否已存在admin用户
     result = await db.execute(select(User).where(User.username == "admin", User.deleted == 0))
     existing_user = result.scalar_one_or_none()
@@ -193,14 +198,16 @@ async def superuser_token(client: TestClient, db: AsyncSession, cached_admin_pas
         db.add(superuser)
         await db.commit()
         await db.refresh(superuser)
+        _cached_user_id = superuser.id
+    else:
+        _cached_user_id = existing_user.id
 
-    # 登录获取token（使用全局缓存）
-    global _cached_superuser_token
-    if _cached_superuser_token is None:
-        response = client.post("/api/v1/auth/login?username=admin&password=admin123")
-        _cached_superuser_token = response.json()["data"]["access_token"]
-
-    return _cached_superuser_token
+    # 登录获取token（每次重新生成，因为 user_id 是 UUID）
+    response = client.post("/api/v1/auth/login?username=admin&password=admin123")
+    if response.status_code != 200:
+        raise Exception(f"Login failed: {response.text}")
+    token: str = response.json()["data"]["access_token"]
+    return token
 
 
 @pytest.fixture(scope="class")
@@ -209,3 +216,30 @@ def auth_headers(superuser_token: str) -> dict[str, str]:
     返回包含认证token的headers（类级别共享）
     """
     return {"Authorization": f"Bearer {superuser_token}"}
+
+
+@pytest.fixture(scope="class")
+async def current_user_id(superuser_token: str, db: AsyncSession):
+    """
+    获取当前用户的 UUID（类级别共享）
+    """
+    from fastapi import HTTPException, status
+
+    from app.core.security import verify_access_token
+
+    try:
+        user_id = verify_access_token(
+            superuser_token, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        )
+        return user_id
+    except Exception:
+        # 如果无法解析token，从数据库获取
+        from sqlalchemy import select
+
+        from app.models.user import User
+
+        result = await db.execute(select(User).where(User.username == "admin", User.deleted == 0))
+        user = result.scalar_one_or_none()
+        if user:
+            return user.id
+        raise

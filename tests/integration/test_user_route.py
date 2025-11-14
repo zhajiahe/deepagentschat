@@ -168,7 +168,7 @@ class TestAuthAPI:
 
         # 修改密码
         response = client.post(
-            "/api/v1/auth/change-password",
+            "/api/v1/auth/reset-password",
             json={"old_password": "old_password", "new_password": "new_password"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -196,7 +196,7 @@ class TestAuthAPI:
 
         # 使用错误的旧密码修改
         response = client.post(
-            "/api/v1/auth/change-password",
+            "/api/v1/auth/reset-password",
             json={"old_password": "wrong_password", "new_password": "new_password"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -366,7 +366,10 @@ class TestUserAPI:
 
     def test_get_user_not_found(self, client: TestClient, auth_headers: dict):
         """测试获取不存在的用户"""
-        response = client.get("/api/v1/users/99999", headers=auth_headers)
+        import uuid
+
+        non_existent_id = str(uuid.uuid4())
+        response = client.get(f"/api/v1/users/{non_existent_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "用户不存在" in response.json()["detail"]
 
@@ -403,7 +406,10 @@ class TestUserAPI:
 
     def test_update_user_not_found(self, client: TestClient, auth_headers: dict):
         """测试更新不存在的用户"""
-        response = client.put("/api/v1/users/99999", json={"nickname": "Test"}, headers=auth_headers)
+        import uuid
+
+        non_existent_id = str(uuid.uuid4())
+        response = client.put(f"/api/v1/users/{non_existent_id}", json={"nickname": "Test"}, headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_delete_user(self, client: TestClient, auth_headers: dict):
@@ -432,5 +438,97 @@ class TestUserAPI:
 
     def test_delete_user_not_found(self, client: TestClient, auth_headers: dict):
         """测试删除不存在的用户"""
-        response = client.delete("/api/v1/users/99999", headers=auth_headers)
+        import uuid
+
+        non_existent_id = str(uuid.uuid4())
+        response = client.delete(f"/api/v1/users/{non_existent_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestUserSettingsAPI:
+    """用户设置 API 测试类"""
+
+    def test_get_user_settings(self, client: TestClient, auth_headers: dict):
+        """测试获取用户设置"""
+        response = client.get("/api/v1/users/settings", headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is True
+        assert "data" in data
+        settings = data["data"]
+        assert "user_id" in settings
+        assert "theme" in settings
+        assert "language" in settings
+        assert settings["theme"] == "light"
+        assert settings["language"] == "zh-CN"
+
+    def test_get_user_settings_creates_default(self, client: TestClient, auth_headers: dict):
+        """测试获取用户设置时自动创建默认设置"""
+        # 第一次获取应该创建默认设置
+        response = client.get("/api/v1/users/settings", headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is True
+        settings = data["data"]
+        assert settings["theme"] == "light"
+        assert settings["language"] == "zh-CN"
+
+    def test_update_user_settings(self, client: TestClient, auth_headers: dict):
+        """测试更新用户设置"""
+        # 更新设置
+        response = client.put(
+            "/api/v1/users/settings",
+            json={
+                "theme": "dark",
+                "language": "en-US",
+                "default_model": "gpt-4",
+                "default_temperature": 0.7,
+                "default_max_tokens": 1000,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is True
+        settings = data["data"]
+        assert settings["theme"] == "dark"
+        assert settings["language"] == "en-US"
+        assert settings["default_model"] == "gpt-4"
+        assert settings["default_temperature"] == 0.7
+        assert settings["default_max_tokens"] == 1000
+
+    def test_update_user_settings_partial(self, client: TestClient, auth_headers: dict):
+        """测试部分更新用户设置"""
+        # 只更新主题
+        response = client.put(
+            "/api/v1/users/settings",
+            json={"theme": "dark"},
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is True
+        settings = data["data"]
+        assert settings["theme"] == "dark"
+        # 其他设置应该保持不变或使用默认值
+        assert "language" in settings
+
+    def test_update_user_settings_invalid_temperature(self, client: TestClient, auth_headers: dict):
+        """测试更新用户设置时温度值超出范围"""
+        # 温度应该在 0.0-2.0 之间
+        response = client.put(
+            "/api/v1/users/settings",
+            json={"default_temperature": 3.0},
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_get_user_settings_unauthorized(self, client: TestClient):
+        """测试未授权获取用户设置"""
+        response = client.get("/api/v1/users/settings")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_update_user_settings_unauthorized(self, client: TestClient):
+        """测试未授权更新用户设置"""
+        response = client.put("/api/v1/users/settings", json={"theme": "dark"})
+        assert response.status_code == status.HTTP_403_FORBIDDEN

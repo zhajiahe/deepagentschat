@@ -59,7 +59,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
             raise HTTPException(status_code=404, detail="Conversation not found or access denied")
         conversation = conv
 
-    config = {"configurable": {"thread_id": thread_id, "user_id": current_user.id}}
+    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
 
     try:
         # 保存用户消息
@@ -172,7 +172,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
     db.add(user_message)
     await db.commit()
 
-    config = {"configurable": {"thread_id": thread_id, "user_id": current_user.id}}
+    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
 
     async def event_generator():
         all_messages = []

@@ -4,6 +4,7 @@
 用于会话管理的请求和响应数据验证
 """
 
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -13,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ConversationCreate(BaseModel):
     """创建会话请求"""
 
-    user_id: int = Field(..., description="用户ID")
+    # user_id 从认证中获取，不再需要在请求中提供
     title: str = Field(default="New Conversation", description="会话标题")
     metadata: dict[str, Any] = Field(default_factory=dict, description="元数据")
 
@@ -32,7 +33,7 @@ class ConversationResponse(BaseModel):
 
     id: int = Field(..., description="会话ID")
     thread_id: str = Field(..., description="线程ID")
-    user_id: int = Field(..., description="用户ID")
+    user_id: uuid.UUID = Field(..., description="用户ID(UUID)")
     title: str = Field(..., description="会话标题")
     metadata: dict[str, Any] = Field(default_factory=dict, description="元数据")
     created_at: datetime = Field(..., description="创建时间")
@@ -58,7 +59,7 @@ class ConversationExportResponse(BaseModel):
 class ConversationImportRequest(BaseModel):
     """会话导入请求"""
 
-    user_id: int = Field(..., description="用户ID")
+    # user_id 从认证中获取，不再需要在请求中提供
     data: dict[str, Any] = Field(..., description="导入数据")
 
 
@@ -80,17 +81,10 @@ class CheckpointResponse(BaseModel):
     checkpoints: list[dict[str, Any]]
 
 
-class StateUpdateRequest(BaseModel):
-    """状态更新请求"""
-
-    state_update: dict[str, Any] = Field(..., description="状态更新数据")
-    as_node: str | None = Field(None, description="作为哪个节点更新")
-
-
 class SearchRequest(BaseModel):
     """搜索请求"""
 
-    user_id: int = Field(..., description="用户ID")
+    # user_id 从认证中获取，不再需要在请求中提供
     query: str = Field(..., description="搜索关键词")
     skip: int = Field(default=0, ge=0, description="跳过数量")
     limit: int = Field(default=20, ge=1, le=100, description="返回数量")

@@ -4,6 +4,8 @@
 提供用户的CRUD操作和认证相关接口
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
@@ -11,7 +13,9 @@ from app.core.deps import CurrentSuperUser, CurrentUser, DBSession
 from app.core.security import create_tokens, get_password_hash, verify_password
 from app.models.base import BasePageQuery, BaseResponse, PageResponse, Token
 from app.models.user import User
+from app.models.user_settings import UserSettings
 from app.schemas.user import PasswordChange, UserCreate, UserListQuery, UserResponse, UserUpdate
+from app.schemas.user_settings import UserSettingsResponse, UserSettingsUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
@@ -56,8 +60,8 @@ async def login(
             detail="用户已被禁用",
         )
 
-    # 创建 token
-    access_token, refresh_token = create_tokens({"user_id": user.id})
+    # 创建 token（user_id 转为字符串）
+    access_token, refresh_token = create_tokens({"user_id": str(user.id)})
 
     return BaseResponse(
         success=True,
@@ -182,7 +186,7 @@ async def update_current_user(
     )
 
 
-@auth_router.post("/change-password", response_model=BaseResponse[None])
+@auth_router.post("/reset-password", response_model=BaseResponse[None])
 async def change_password(
     password_data: PasswordChange,
     current_user: CurrentUser,
@@ -291,9 +295,108 @@ async def get_users(
     )
 
 
+# ==================== 用户设置接口（必须在 /{user_id} 之前） ====================
+
+
+@router.get("/settings", response_model=BaseResponse[UserSettingsResponse])
+async def get_user_settings(current_user: CurrentUser, db: DBSession):
+    """
+    获取用户设置
+
+    Args:
+        current_user: 当前用户
+        db: 数据库会话
+
+    Returns:
+        UserSettingsResponse: 用户设置
+    """
+    result = await db.execute(
+        select(UserSettings).where(UserSettings.user_id == current_user.id, UserSettings.deleted == 0)
+    )
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        # 如果不存在，创建默认设置
+        settings = UserSettings(
+            user_id=current_user.id,
+            theme="light",
+            language="zh-CN",
+            settings={},
+        )
+        db.add(settings)
+        await db.commit()
+        await db.refresh(settings)
+
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="获取用户设置成功",
+        data=UserSettingsResponse(
+            user_id=settings.user_id,
+            default_model=settings.default_model,
+            default_temperature=settings.default_temperature,
+            default_max_tokens=settings.default_max_tokens,
+            theme=settings.theme or "light",
+            language=settings.language or "zh-CN",
+            settings=settings.settings or {},
+        ),
+    )
+
+
+@router.put("/settings", response_model=BaseResponse[UserSettingsResponse])
+async def update_user_settings(settings_data: UserSettingsUpdate, current_user: CurrentUser, db: DBSession):
+    """
+    更新用户设置
+
+    Args:
+        settings_data: 用户设置更新数据
+        current_user: 当前用户
+        db: 数据库会话
+
+    Returns:
+        UserSettingsResponse: 更新后的用户设置
+    """
+    result = await db.execute(
+        select(UserSettings).where(UserSettings.user_id == current_user.id, UserSettings.deleted == 0)
+    )
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        # 如果不存在，创建新设置
+        settings = UserSettings(user_id=current_user.id)
+        db.add(settings)
+
+    # 更新字段
+    update_data = settings_data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if value is not None:
+            setattr(settings, key, value)
+
+    await db.commit()
+    await db.refresh(settings)
+
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="更新用户设置成功",
+        data=UserSettingsResponse(
+            user_id=settings.user_id,
+            default_model=settings.default_model,
+            default_temperature=settings.default_temperature,
+            default_max_tokens=settings.default_max_tokens,
+            theme=settings.theme or "light",
+            language=settings.language or "zh-CN",
+            settings=settings.settings or {},
+        ),
+    )
+
+
+# ==================== 用户管理接口（需要超级管理员权限） ====================
+
+
 @router.get("/{user_id}", response_model=BaseResponse[UserResponse])
 async def get_user(
-    user_id: int,
+    user_id: uuid.UUID,
     _current_user: CurrentSuperUser,
     db: DBSession,
 ):
@@ -367,7 +470,7 @@ async def create_user(
 
 @router.put("/{user_id}", response_model=BaseResponse[UserResponse])
 async def update_user(
-    user_id: int,
+    user_id: uuid.UUID,
     user_data: UserUpdate,
     _current_user: CurrentSuperUser,
     db: DBSession,
@@ -419,7 +522,7 @@ async def update_user(
 
 @router.delete("/{user_id}", response_model=BaseResponse[None])
 async def delete_user(
-    user_id: int,
+    user_id: uuid.UUID,
     _current_user: CurrentSuperUser,
     db: DBSession,
 ):

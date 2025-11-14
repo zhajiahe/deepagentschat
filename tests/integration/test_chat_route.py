@@ -27,14 +27,13 @@ class TestChatAPI:
         assert "你好" in data["response"] or "Echo" in data["response"]
 
     @pytest.mark.asyncio
-    async def test_chat_continue_conversation(self, client: TestClient, auth_headers: dict, db):
+    async def test_chat_continue_conversation(self, client: TestClient, auth_headers: dict, db, current_user_id):
         """测试在同一会话中继续对话"""
         from app.models import Conversation
 
-        # 先创建一个会话
         conversation = Conversation(
             thread_id="test-thread-1",
-            user_id=1,
+            user_id=current_user_id,
             title="Test Conversation",
             meta_data={},
         )
@@ -92,14 +91,14 @@ class TestConversationResetAPI:
     """对话重置 API 测试类"""
 
     @pytest.mark.asyncio
-    async def test_reset_conversation(self, client: TestClient, auth_headers: dict, db):
+    async def test_reset_conversation(self, client: TestClient, auth_headers: dict, db, current_user_id):
         """测试重置对话"""
         from app.models import Conversation, Message
 
         # 创建会话和消息
         conversation = Conversation(
             thread_id="test-reset-thread",
-            user_id=1,
+            user_id=current_user_id,
             title="Test Reset",
             meta_data={},
         )
@@ -142,12 +141,26 @@ class TestConversationResetAPI:
     @pytest.mark.asyncio
     async def test_reset_conversation_unauthorized(self, client: TestClient, db):
         """测试未授权重置对话"""
-        from app.models import Conversation
+        from app.core.security import get_password_hash
+        from app.models import Conversation, User
+
+        # 创建其他用户
+        other_user = User(
+            username="otheruser",
+            email="other@example.com",
+            nickname="Other User",
+            hashed_password=get_password_hash("test123"),
+            is_active=True,
+            is_superuser=False,
+        )
+        db.add(other_user)
+        await db.commit()
+        await db.refresh(other_user)
 
         # 创建其他用户的会话
         conversation = Conversation(
             thread_id="other-user-thread",
-            user_id=999,  # 其他用户ID
+            user_id=other_user.id,  # 其他用户ID
             title="Other User Conversation",
             meta_data={},
         )

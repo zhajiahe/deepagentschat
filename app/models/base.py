@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, Field, computed_field
@@ -66,7 +67,7 @@ class PageResponse[T](BaseModel):
 class Token(BaseModel):
     """Token基础数据"""
 
-    id: int
+    id: uuid.UUID
     nickname: str
     access_token: str
     refresh_token: str

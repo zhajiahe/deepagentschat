@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, String
+import uuid
+
+from sqlalchemy import UUID, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, BaseTableMixin
@@ -8,6 +10,11 @@ class User(Base, BaseTableMixin):
     """用户表模型"""
 
     __tablename__ = "users"
+
+    # 覆盖 BaseTableMixin 的 id 字段，使用 UUID
+    id: Mapped[uuid.UUID] = mapped_column(  # type: ignore[assignment]
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, comment="用户ID(UUID)"
+    )
 
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True, comment="用户名")
     email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True, comment="邮箱")

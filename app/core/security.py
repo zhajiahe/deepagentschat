@@ -1,5 +1,6 @@
 import hashlib
 import os
+import uuid
 from datetime import datetime, timedelta
 
 import bcrypt
@@ -63,10 +64,14 @@ def verify_access_token(token: str, credentials_exception):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
             raise credentials_exception
-        # 从令牌中获取租户ID和用户ID并设置上下文
-        user_id = int(payload.get("user_id"))
+        # 从令牌中获取用户ID（UUID）
+        user_id_str = payload.get("user_id")
+        if isinstance(user_id_str, str):
+            user_id = uuid.UUID(user_id_str)
+        else:
+            user_id = uuid.UUID(str(user_id_str))
         return user_id
-    except JWTError as e:
+    except (JWTError, ValueError, TypeError) as e:
         raise credentials_exception from e
 
 
@@ -76,7 +81,11 @@ def verify_refresh_token(token: str, credentials_exception):
         payload = jwt.decode(token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != "refresh":
             raise credentials_exception
-        user_id = int(payload.get("user_id"))
+        user_id_str = payload.get("user_id")
+        if isinstance(user_id_str, str):
+            user_id = uuid.UUID(user_id_str)
+        else:
+            user_id = uuid.UUID(str(user_id_str))
         return user_id
-    except JWTError as e:
+    except (JWTError, ValueError, TypeError) as e:
         raise credentials_exception from e

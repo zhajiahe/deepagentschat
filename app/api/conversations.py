@@ -16,6 +16,7 @@ from app.core.deps import CurrentUser
 from app.core.lifespan import get_compiled_graph
 from app.models import Conversation, Message
 from app.schemas import (
+    ChatResponse,
     CheckpointResponse,
     ConversationCreate,
     ConversationDetailResponse,
@@ -27,7 +28,6 @@ from app.schemas import (
     SearchRequest,
     SearchResponse,
     StateResponse,
-    StateUpdateRequest,
     UserStatsResponse,
 )
 from app.utils.datetime import utc_now
@@ -38,7 +38,7 @@ router = APIRouter(prefix="/conversations", tags=["Conversations"])
 # ============= 辅助函数 =============
 
 
-async def verify_conversation_ownership(thread_id: str, user_id: int, db: AsyncSession) -> Conversation:
+async def verify_conversation_ownership(thread_id: str, user_id: uuid.UUID, db: AsyncSession) -> Conversation:
     """验证会话所有权"""
     result = await db.execute(
         select(Conversation).where(Conversation.thread_id == thread_id, Conversation.user_id == user_id)
@@ -337,6 +337,126 @@ async def get_messages(
     ]
 
 
+# ============= 消息管理接口 =============
+
+
+@router.post("/{thread_id}/messages/{message_id}/regenerate", response_model=ChatResponse)
+async def regenerate_message(
+    thread_id: str,
+    message_id: int,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    重新生成指定消息的回复
+
+    Args:
+        thread_id: 线程ID
+        message_id: 消息ID（要重新生成的助手消息）
+        current_user: 当前用户
+        db: 数据库会话
+
+    Returns:
+        ChatResponse: 新的回复
+    """
+    from langchain.messages import HumanMessage
+
+    # 验证会话所有权
+    await verify_conversation_ownership(thread_id, current_user.id, db)
+
+    # 获取要重新生成的消息
+    result = await db.execute(select(Message).where(Message.id == message_id, Message.thread_id == thread_id))
+    message = result.scalar_one_or_none()
+
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if message.role != "assistant":
+        raise HTTPException(status_code=400, detail="只能重新生成助手消息")
+
+    # 找到该消息之前的用户消息
+    result = await db.execute(
+        select(Message)
+        .where(Message.thread_id == thread_id, Message.create_time < message.create_time, Message.role == "user")
+        .order_by(Message.create_time.desc())
+        .limit(1)
+    )
+    user_message = result.scalar_one_or_none()
+
+    if not user_message:
+        raise HTTPException(status_code=400, detail="找不到对应的用户消息")
+
+    # 删除该消息及之后的所有消息（先提交删除操作）
+    await db.execute(delete(Message).where(Message.thread_id == thread_id, Message.create_time >= message.create_time))
+    await db.commit()  # 先提交删除操作
+
+    # 删除 LangGraph 检查点（从该消息之后）
+    from app.core.checkpointer import delete_thread_checkpoints
+
+    try:
+        await delete_thread_checkpoints(thread_id)
+        logger.info(f"✅ Deleted LangGraph checkpoints for thread: {thread_id}")
+    except Exception as e:
+        logger.warning(f"Failed to delete checkpoints: {e}")
+
+    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
+
+    try:
+        # 重新执行图
+        start_time = utc_now()
+        compiled_graph = get_compiled_graph()
+        graph_result = await compiled_graph.ainvoke({"messages": [HumanMessage(content=user_message.content)]}, config)
+        duration = (utc_now() - start_time).total_seconds() * 1000
+
+        # 保存新产生的消息
+        result_messages = graph_result["messages"]
+
+        # 从第二条消息开始保存（第一条是用户消息）
+        for msg in result_messages[1:]:
+            msg_type = type(msg).__name__
+            if msg_type == "AIMessage":
+                role = "assistant"
+            elif msg_type == "HumanMessage":
+                role = "user"
+            elif msg_type == "SystemMessage":
+                role = "system"
+            elif msg_type == "ToolMessage":
+                role = "tool"
+            elif msg_type == "FunctionMessage":
+                role = "function"
+            else:
+                role = msg_type.lower().replace("message", "")
+
+            new_message = Message(
+                thread_id=thread_id,
+                role=role,
+                content=str(msg.content) if msg.content else "",
+                meta_data={
+                    "type": msg_type,
+                    **(msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}),
+                },
+            )
+            db.add(new_message)
+
+        # 提取最后一条助手回复
+        assistant_content = result_messages[-1].content
+
+        # 更新会话时间
+        result_conv = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
+        conv_update = result_conv.scalar_one_or_none()
+        if conv_update:
+            conv_update.update_time = utc_now()
+
+        await db.commit()
+
+        return ChatResponse(thread_id=thread_id, response=assistant_content, duration_ms=int(duration))
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Regenerate error: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 # ============= 状态管理接口 =============
 
 
@@ -354,7 +474,7 @@ async def get_state(thread_id: str, current_user: CurrentUser, db: AsyncSession 
     # 验证会话所有权
     await verify_conversation_ownership(thread_id, current_user.id, db)
 
-    config = {"configurable": {"thread_id": thread_id, "user_id": current_user.id}}
+    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
     try:
         compiled_graph = get_compiled_graph()
         state = await compiled_graph.aget_state(config)
@@ -399,7 +519,7 @@ async def get_checkpoints(
     # 验证会话所有权
     await verify_conversation_ownership(thread_id, current_user.id, db)
 
-    config = {"configurable": {"thread_id": thread_id, "user_id": current_user.id}}
+    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
     try:
         compiled_graph = get_compiled_graph()
         checkpoints = []
@@ -419,34 +539,6 @@ async def get_checkpoints(
         return CheckpointResponse(thread_id=thread_id, checkpoints=checkpoints)
     except Exception as e:
         logger.error(f"Get checkpoints error: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@router.post("/{thread_id}/update-state")
-async def update_state(
-    thread_id: str, request: StateUpdateRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db)
-):
-    """
-    更新会话状态
-
-    Args:
-        thread_id: 线程ID
-        request: 状态更新请求
-
-    Returns:
-        dict: 更新状态
-    """
-    # 验证会话所有权
-    await verify_conversation_ownership(thread_id, current_user.id, db)
-
-    config = {"configurable": {"thread_id": thread_id, "user_id": current_user.id}}
-
-    try:
-        compiled_graph = get_compiled_graph()
-        await compiled_graph.aupdate_state(config, request.state_update, as_node=request.as_node)
-        return {"status": "updated", "thread_id": thread_id}
-    except Exception as e:
-        logger.error(f"Update state error: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -474,7 +566,7 @@ async def export_conversation(thread_id: str, current_user: CurrentUser, db: Asy
     messages = messages_result.scalars().all()
 
     # 获取 LangGraph 状态
-    config = {"configurable": {"thread_id": thread_id, "user_id": current_user.id}}
+    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
     try:
         compiled_graph = get_compiled_graph()
         state = await compiled_graph.aget_state(config)
@@ -544,7 +636,7 @@ async def import_conversation(
 
     # 恢复 LangGraph 状态
     if "state" in data and data["state"]:
-        config = {"configurable": {"thread_id": thread_id, "user_id": current_user.id}}
+        config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
         try:
             compiled_graph = get_compiled_graph()
             await compiled_graph.aupdate_state(config, data["state"])

@@ -16,10 +16,10 @@ from app.schemas.conversation import (
     SearchRequest,
     SearchResponse,
     StateResponse,
-    StateUpdateRequest,
     UserStatsResponse,
 )
 from app.schemas.user import PasswordChange, UserCreate, UserListQuery, UserResponse, UserUpdate
+from app.schemas.user_settings import UserSettingsResponse, UserSettingsUpdate
 
 __all__ = [
     "UserCreate",
@@ -27,6 +27,8 @@ __all__ = [
     "UserResponse",
     "UserListQuery",
     "PasswordChange",
+    "UserSettingsResponse",
+    "UserSettingsUpdate",
     "ChatRequest",
     "ChatResponse",
     "MessageResponse",
@@ -38,7 +40,6 @@ __all__ = [
     "ConversationImportRequest",
     "StateResponse",
     "CheckpointResponse",
-    "StateUpdateRequest",
     "SearchRequest",
     "SearchResponse",
     "UserStatsResponse",

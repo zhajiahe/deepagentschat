@@ -20,8 +20,8 @@ setup_logging()
 
 # 创建 FastAPI 应用
 app = FastAPI(
-    title="FastAPI Template",
-    description="基于 SQLAlchemy 2.0+ 的 FastAPI 项目模板",
+    title="API Doc",
+    description="Langchain+fastapi生产级后端模板",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -47,7 +47,7 @@ async def root():
     """根路径，健康检查"""
     return {
         "status": "ok",
-        "message": "FastAPI Template is running!",
+        "message": "Langchain+fastapi生产级后端 is running!",
         "docs": "/docs",
         "redoc": "/redoc",
     }
