@@ -75,17 +75,42 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         graph_result = await compiled_graph.ainvoke({"messages": [HumanMessage(content=request.message)]}, config)
         duration = (datetime.utcnow() - start_time).total_seconds() * 1000
 
-        # 提取助手回复
-        assistant_content = graph_result["messages"][-1].content
+        # 保存所有新产生的消息（不仅仅是最后一条）
+        # graph_result["messages"] 包含所有消息，包括用户消息和所有 agent 产生的消息
+        result_messages = graph_result["messages"]
 
-        # 保存助手回复
-        assistant_message = Message(
-            thread_id=thread_id,
-            role="assistant",
-            content=assistant_content,
-            meta_data={"duration_ms": duration},
-        )
-        db.add(assistant_message)
+        # 从第二条消息开始保存（第一条是用户消息，已经保存过了）
+        for msg in result_messages[1:]:
+            # 确定消息类型
+            msg_type = type(msg).__name__
+            if msg_type == "AIMessage":
+                role = "assistant"
+            elif msg_type == "HumanMessage":
+                role = "user"
+            elif msg_type == "SystemMessage":
+                role = "system"
+            elif msg_type == "ToolMessage":
+                role = "tool"
+            elif msg_type == "FunctionMessage":
+                role = "function"
+            else:
+                role = msg_type.lower().replace("message", "")
+
+            # 保存消息
+            message = Message(
+                thread_id=thread_id,
+                role=role,
+                content=str(msg.content) if msg.content else "",
+                meta_data={
+                    "type": msg_type,
+                    "duration_ms": duration if role == "assistant" else None,
+                    **(msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}),
+                },
+            )
+            db.add(message)
+
+        # 提取最后一条助手回复用于响应
+        assistant_content = result_messages[-1].content
 
         # 更新会话时间
         result_conv = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
@@ -139,7 +164,7 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     config = {"configurable": {"thread_id": thread_id}}
 
     async def event_generator():
-        full_response = ""
+        all_messages = []
         try:
             compiled_graph = get_compiled_graph()
             # 使用异步 stream
@@ -147,22 +172,42 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                 {"messages": [HumanMessage(content=request.message)]}, config, stream_mode="values"
             ):
                 if "messages" in event and event["messages"]:
-                    last_message = event["messages"][-1]
+                    all_messages = event["messages"]
+                    last_message = all_messages[-1]
                     if hasattr(last_message, "content"):
                         chunk = last_message.content
-                        full_response = chunk
                         yield f"data: {json.dumps({'content': chunk, 'thread_id': thread_id})}\n\n"
 
-            # 保存完整回复
-            if full_response:
+            # 保存所有新产生的消息
+            if len(all_messages) > 1:  # 第一条是用户消息，已保存
                 async with AsyncSessionLocal() as new_session:
-                    assistant_message = Message(
-                        thread_id=thread_id,
-                        role="assistant",
-                        content=full_response,
-                        meta_data={},
-                    )
-                    new_session.add(assistant_message)
+                    # 从第二条消息开始保存
+                    for msg in all_messages[1:]:
+                        # 确定消息类型
+                        msg_type = type(msg).__name__
+                        if msg_type == "AIMessage":
+                            role = "assistant"
+                        elif msg_type == "HumanMessage":
+                            role = "user"
+                        elif msg_type == "SystemMessage":
+                            role = "system"
+                        elif msg_type == "ToolMessage":
+                            role = "tool"
+                        elif msg_type == "FunctionMessage":
+                            role = "function"
+                        else:
+                            role = msg_type.lower().replace("message", "")
+
+                        message = Message(
+                            thread_id=thread_id,
+                            role=role,
+                            content=str(msg.content) if msg.content else "",
+                            meta_data={
+                                "type": msg_type,
+                                **(msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}),
+                            },
+                        )
+                        new_session.add(message)
 
                     # 更新会话时间
                     result = await new_session.execute(select(Conversation).where(Conversation.thread_id == thread_id))
