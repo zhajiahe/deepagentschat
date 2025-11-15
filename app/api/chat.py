@@ -35,7 +35,21 @@ class StopRequest(BaseModel):
 
 
 def get_role(msg: BaseMessage) -> str:
-    return str(msg.type)
+    """将 LangChain 消息类型映射为标准角色名称"""
+    msg_type = type(msg).__name__
+    if msg_type == "AIMessage":
+        return "assistant"
+    elif msg_type == "HumanMessage":
+        return "user"
+    elif msg_type == "SystemMessage":
+        return "system"
+    elif msg_type == "ToolMessage":
+        return "tool"
+    elif msg_type == "FunctionMessage":
+        return "function"
+    else:
+        # 回退到使用消息类型名称
+        return msg_type.lower().replace("message", "")
 
 
 @router.post("", response_model=ChatResponse)
@@ -112,25 +126,24 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
         await task_manager.unregister_task(thread_id)
         duration = (utc_now() - start_time).total_seconds() * 1000
 
-        # 保存所有新产生的消息（不仅仅是最后一条）
-        # graph_result["messages"] 包含所有消息，包括用户消息和所有 agent 产生的消息
+        # 只保存最后一条助手回复（LangGraph 生成的新消息）
         result_messages = graph_result["messages"]
-
-        # 从第二条消息开始保存（第一条是用户消息，已经保存过了）
-        for msg in result_messages[1:]:
+        if result_messages:
+            last_message = result_messages[-1]
             # 确定消息类型
-            role = get_role(msg)
-            # 保存消息
-            message = Message(
-                thread_id=thread_id,
-                role=role,
-                content=str(msg.content) if msg.content else "",
-                meta_data=msg.additional_kwargs,
-            )
-            db.add(message)
+            role = get_role(last_message)
+            # 只保存助手消息，避免重复保存用户消息
+            if role == "assistant":
+                message = Message(
+                    thread_id=thread_id,
+                    role=role,
+                    content=str(last_message.content) if last_message.content else "",
+                    meta_data=last_message.additional_kwargs,
+                )
+                db.add(message)
 
         # 提取最后一条助手回复用于响应
-        assistant_content = result_messages[-1].content
+        assistant_content = result_messages[-1].content if result_messages else ""
 
         # 更新会话时间
         result_conv = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
@@ -220,37 +233,45 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
 
                 if "messages" in event and event["messages"]:
                     all_messages = event["messages"]
-                    last_message = all_messages[-1]
-                    if hasattr(last_message, "content"):
-                        chunk = last_message.content
-                        yield f"data: {json.dumps({'content': chunk, 'thread_id': thread_id})}\n\n"
+                    # 只发送助手消息的内容，跳过用户消息
+                    # 第一条消息是用户消息，从第二条开始才是助手消息
+                    if len(all_messages) > 1:
+                        last_message = all_messages[-1]
+                        # 确保最后一条消息不是用户消息
+                        if hasattr(last_message, "type") and str(last_message.type) != "human":
+                            if hasattr(last_message, "content"):
+                                chunk = last_message.content
+                                yield f"data: {json.dumps({'content': chunk, 'thread_id': thread_id})}\n\n"
 
             # 如果被停止，不保存消息
             if stopped:
                 await task_manager.unregister_task(thread_id)
                 return
 
-            # 保存所有新产生的消息
-            if len(all_messages) > 1:  # 第一条是用户消息，已保存
-                async with AsyncSessionLocal() as new_session:
-                    # 从第二条消息开始保存
-                    for msg in all_messages[1:]:
-                        role = get_role(msg)
+            # 只保存最后一条助手回复（LangGraph 生成的新消息）
+            if all_messages:
+                last_message = all_messages[-1]
+                role = get_role(last_message)
+                # 只保存助手消息，避免重复保存用户消息
+                if role == "assistant":
+                    async with AsyncSessionLocal() as new_session:
                         message = Message(
                             thread_id=thread_id,
                             role=role,
-                            content=str(msg.content) if msg.content else "",
-                            meta_data=msg.additional_kwargs,
+                            content=str(last_message.content) if last_message.content else "",
+                            meta_data=last_message.additional_kwargs,
                         )
                         new_session.add(message)
 
-                    # 更新会话时间
-                    result = await new_session.execute(select(Conversation).where(Conversation.thread_id == thread_id))
-                    conversation = result.scalar_one_or_none()
-                    if conversation:
-                        conversation.update_time = utc_now()
+                        # 更新会话时间
+                        result = await new_session.execute(
+                            select(Conversation).where(Conversation.thread_id == thread_id)
+                        )
+                        conversation = result.scalar_one_or_none()
+                        if conversation:
+                            conversation.update_time = utc_now()
 
-                    await new_session.commit()
+                        await new_session.commit()
 
             yield f"data: {json.dumps({'done': True})}\n\n"
 
