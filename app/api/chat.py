@@ -231,9 +231,9 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
 
         try:
             compiled_graph = get_compiled_graph()
-            # 使用异步 stream with updates mode for incremental output
-            async for event in compiled_graph.astream(
-                {"messages": [HumanMessage(content=request.message)]}, config, stream_mode="updates"
+            # 使用 astream_events 获取逐token流式输出
+            async for event in compiled_graph.astream_events(
+                {"messages": [HumanMessage(content=request.message)]}, config, version="v2"
             ):
                 # 检查是否被停止
                 if await task_manager.is_stopped(thread_id):
@@ -242,23 +242,25 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                     yield f"data: {json.dumps({'stopped': True, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
                     break
 
-                # 处理 updates 模式的事件
-                for _node_name, node_output in event.items():
-                    if "messages" in node_output:
-                        messages = node_output["messages"]
+                # 处理 on_chat_model_stream 事件以获取逐token输出
+                event_type = event.get("event")
+                if event_type == "on_chat_model_stream":
+                    chunk_data = event.get("data", {})
+                    if "chunk" in chunk_data:
+                        chunk_obj = chunk_data["chunk"]
+                        if hasattr(chunk_obj, "content") and chunk_obj.content:
+                            chunk_text = chunk_obj.content
+                            assistant_content += chunk_text
+                            # 发送增量内容
+                            yield f"data: {json.dumps({'content': chunk_text, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+
+                # 收集最终消息用于保存
+                elif event_type == "on_chain_end":
+                    output = event.get("data", {}).get("output", {})
+                    if "messages" in output:
+                        messages = output["messages"]
                         if messages:
-                            last_message = messages[-1]
-                            # 只处理助手消息
-                            if hasattr(last_message, "type") and str(last_message.type) != "human":
-                                if hasattr(last_message, "content"):
-                                    new_content = last_message.content
-                                    # 计算增量内容
-                                    if len(new_content) > len(assistant_content):
-                                        chunk = new_content[len(assistant_content) :]
-                                        assistant_content = new_content
-                                        # 使用ensure_ascii=False确保中文正确编码
-                                        yield f"data: {json.dumps({'content': chunk, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
-                                    all_messages.append(last_message)
+                            all_messages = messages
 
             # 如果被停止，不保存消息
             if stopped:
