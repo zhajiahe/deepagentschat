@@ -223,14 +223,11 @@ async def current_user_id(superuser_token: str, db: AsyncSession):
     """
     获取当前用户的 UUID（类级别共享）
     """
-    from fastapi import HTTPException, status
 
     from app.core.security import verify_access_token
 
     try:
-        user_id = verify_access_token(
-            superuser_token, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        )
+        user_id = verify_access_token(superuser_token)
         return user_id
     except Exception:
         # 如果无法解析token，从数据库获取

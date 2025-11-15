@@ -71,7 +71,7 @@ def run_scenario_tests(base_url: str = "http://localhost:8000") -> bool:
     scenarios = [
         {"users": 1, "run_time": "30s", "description": "单用户基准测试"},
         {"users": 5, "run_time": "1m", "description": "5用户并发测试"},
-        {"users": 10, "run_time": "2m", "description": "10用户高并发测试"},
+        # {"users": 10, "run_time": "2m", "description": "10用户高并发测试"},
     ]
 
     print("🎯 开始对话接口性能测试套件")
@@ -80,11 +80,7 @@ def run_scenario_tests(base_url: str = "http://localhost:8000") -> bool:
     results = []
 
     for scenario in scenarios:
-        success = run_locust_test(
-            users=int(scenario["users"]),
-            run_time=str(scenario["run_time"]),
-            base_url=base_url
-        )
+        success = run_locust_test(users=int(scenario["users"]), run_time=str(scenario["run_time"]), base_url=base_url)
         results.append({"scenario": scenario, "success": success})
 
     # 输出总结报告

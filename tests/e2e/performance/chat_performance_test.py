@@ -33,23 +33,30 @@ class ChatUser(HttpUser):
             login_response = self.client.post(f"{self.base_url}/api/v1/auth/login?username=admin&password=admin123")
 
             if login_response.status_code == 200:
-                self.token = login_response.json()["data"]["access_token"]
-                print(f"用户登录成功，token: {self.token[:20]}...")
+                login_data = login_response.json()
+                if login_data.get("success") and "data" in login_data:
+                    self.token = login_data["data"]["access_token"]
+                    print(f"用户登录成功，token: {self.token[:20]}...")
 
-                # 创建会话
-                headers = {"Authorization": f"Bearer {self.token}"}
-                conversation_response = self.client.post(
-                    f"{self.base_url}/api/v1/conversations",
-                    json={"title": f"性能测试会话-{time.time()}"},
-                    headers=headers,
-                )
+                    # 创建会话
+                    headers = {"Authorization": f"Bearer {self.token}"}
+                    conversation_response = self.client.post(
+                        f"{self.base_url}/api/v1/conversations",
+                        json={"title": f"性能测试会话-{time.time()}"},
+                        headers=headers,
+                    )
 
-                if conversation_response.status_code == 200:
-                    response_data = conversation_response.json()
-                    self.thread_id = response_data["thread_id"]
-                    print(f"会话创建成功，thread_id: {self.thread_id}")
+                    if conversation_response.status_code == 200:
+                        response_data = conversation_response.json()
+                        if response_data.get("success") and "data" in response_data:
+                            self.thread_id = response_data["data"]["thread_id"]
+                            print(f"会话创建成功，thread_id: {self.thread_id}")
+                        else:
+                            print(f"会话创建响应格式错误: {response_data}")
+                    else:
+                        print(f"会话创建失败: {conversation_response.status_code} - {conversation_response.text}")
                 else:
-                    print(f"会话创建失败: {conversation_response.status_code} - {conversation_response.text}")
+                    print(f"登录响应格式错误: {login_data}")
             else:
                 print(f"登录失败: {login_response.status_code} - {login_response.text}")
 
@@ -75,13 +82,19 @@ class ChatUser(HttpUser):
             f"{self.base_url}/api/v1/chat", json=chat_request, headers=headers, catch_response=True
         ) as response:
             if response.status_code == 200:
-                data = response.json()
-                # 检查是否是成功的响应（包含response字段）
-                if isinstance(data, dict) and "response" in data:
+                response_data = response.json()
+                # 检查是否是成功的响应
+                if (
+                    isinstance(response_data, dict)
+                    and response_data.get("success")
+                    and "data" in response_data
+                    and "response" in response_data["data"]
+                ):
                     response.success()
-                    print(f"非流式对话成功: {len(data.get('response', ''))} 字符")
+                    chat_data = response_data["data"]
+                    print(f"非流式对话成功: {len(chat_data.get('response', ''))} 字符")
                 else:
-                    response.failure(f"API返回错误: {data}")
+                    response.failure(f"API返回错误: {response_data}")
             else:
                 response.failure(f"HTTP {response.status_code}: {response.text}")
 
@@ -123,23 +136,24 @@ class ChatUser(HttpUser):
             f"{self.base_url}/api/v1/chat/stop", json=stop_request, headers=headers, catch_response=True
         ) as response:
             if response.status_code == 200:
-                data = response.json()
-                # 检查响应中是否包含状态信息
-                if isinstance(data, dict) and "status" in data:
-                    if data["status"] == "stopped":
-                        response.success()
-                        print("停止对话成功")
-                    elif data["status"] == "not_running":
-                        # 没有运行中的任务，这不是错误
-                        response.success()
-                        print("没有运行中的对话，无需停止")
+                response_data = response.json()
+                # 检查响应格式
+                if isinstance(response_data, dict) and response_data.get("success") and "data" in response_data:
+                    stop_data = response_data["data"]
+                    if "status" in stop_data:
+                        if stop_data["status"] == "stopped":
+                            response.success()
+                            print("停止对话成功")
+                        elif stop_data["status"] == "not_running":
+                            # 没有运行中的任务，这不是错误
+                            response.success()
+                            print("没有运行中的对话，无需停止")
+                        else:
+                            response.failure(f"未知状态: {stop_data}")
                     else:
-                        response.failure(f"未知状态: {data}")
-                elif data.get("code") == 200:
-                    response.success()
-                    print("停止对话成功")
+                        response.failure(f"响应数据中缺少status字段: {stop_data}")
                 else:
-                    response.failure(f"API返回错误: {data}")
+                    response.failure(f"API响应格式错误: {response_data}")
             else:
                 response.failure(f"HTTP {response.status_code}: {response.text}")
 

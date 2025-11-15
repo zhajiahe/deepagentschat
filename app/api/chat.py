@@ -8,7 +8,7 @@ import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import StreamingResponse
 from langchain.messages import HumanMessage
 from langchain_core.messages.base import BaseMessage
@@ -19,8 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.deps import CurrentUser
+from app.core.exceptions import (
+    raise_client_closed_error,
+    raise_internal_error,
+    raise_not_found_error,
+)
 from app.core.lifespan import get_compiled_graph
 from app.models import Conversation, Message
+from app.models.base import BaseResponse
 from app.schemas import ChatRequest, ChatResponse
 from app.utils.datetime import utc_now
 from app.utils.task_manager import task_manager
@@ -52,7 +58,7 @@ def get_role(msg: BaseMessage) -> str:
         return msg_type.lower().replace("message", "")
 
 
-@router.post("", response_model=ChatResponse)
+@router.post("", response_model=BaseResponse[ChatResponse])
 async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
     异步对话接口 (非流式)
@@ -84,7 +90,9 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
         )
         conv = result.scalar_one_or_none()
         if not conv:
-            raise HTTPException(status_code=404, detail="Conversation not found or access denied")
+            raise_not_found_error("会话")
+        # 此时conv肯定不是None
+        assert conv is not None
         conversation = conv
 
     config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
@@ -112,16 +120,16 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
 
         try:
             graph_result = await invoke_task
-        except asyncio.CancelledError as e:
+        except asyncio.CancelledError:
             logger.info(f"Non-stream chat cancelled for thread_id: {thread_id}")
             await task_manager.unregister_task(thread_id)
-            raise HTTPException(status_code=499, detail="Chat request was cancelled") from e
+            raise_client_closed_error("对话请求已被取消")
 
         # 检查是否被停止（在任务完成前）
         if await task_manager.is_stopped(thread_id):
             logger.info(f"Non-stream chat stopped for thread_id: {thread_id}")
             await task_manager.unregister_task(thread_id)
-            raise HTTPException(status_code=499, detail="Chat request was stopped")
+            raise_client_closed_error("对话请求已被停止")
 
         await task_manager.unregister_task(thread_id)
         duration = (utc_now() - start_time).total_seconds() * 1000
@@ -153,16 +161,18 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
 
         await db.commit()
 
-        return ChatResponse(thread_id=thread_id, response=assistant_content, duration_ms=int(duration))
+        return BaseResponse(
+            success=True,
+            code=200,
+            msg="对话成功",
+            data=ChatResponse(thread_id=thread_id, response=assistant_content, duration_ms=int(duration)),
+        )
 
-    except HTTPException:
-        # 重新抛出HTTP异常（如取消、停止等）
-        raise
     except Exception as e:
         logger.error(f"Chat error: {e}")
         # 确保注销任务
         await task_manager.unregister_task(thread_id)
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise_internal_error(str(e))
 
 
 @router.post("/stream")
@@ -196,7 +206,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
         )
         conv = result.scalar_one_or_none()
         if not conv:
-            raise HTTPException(status_code=404, detail="Conversation not found or access denied")
+            raise_not_found_error("会话")
 
     # 保存用户消息
     user_message = Message(
@@ -291,7 +301,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
 @router.post("/stop")
 async def stop_chat(request: StopRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
-    停止正在进行的流式对话
+    停止正在进行的对话请求
 
     Args:
         request: 停止请求，包含 thread_id
@@ -309,7 +319,7 @@ async def stop_chat(request: StopRequest, current_user: CurrentUser, db: AsyncSe
     )
     conv = result.scalar_one_or_none()
     if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found or access denied")
+        raise_not_found_error("会话")
 
     # 尝试停止任务（先标记停止，然后尝试取消）
     stopped = await task_manager.stop_task(thread_id)
@@ -319,7 +329,11 @@ async def stop_chat(request: StopRequest, current_user: CurrentUser, db: AsyncSe
         logger.info(
             f"Stop request received for thread_id: {thread_id} by user {current_user.id}, cancelled: {cancelled}"
         )
-        return {"status": "stopped", "thread_id": thread_id, "message": "Stop request sent successfully"}
+        return BaseResponse(
+            success=True, code=200, msg="停止请求已发送", data={"status": "stopped", "thread_id": thread_id}
+        )
     else:
         # 任务不存在，可能已经完成或从未开始
-        return {"status": "not_running", "thread_id": thread_id, "message": "No running task found for this thread"}
+        return BaseResponse(
+            success=True, code=200, msg="没有找到正在运行的任务", data={"status": "not_running", "thread_id": thread_id}
+        )

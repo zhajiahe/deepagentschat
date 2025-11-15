@@ -51,8 +51,8 @@ class TestAuthAPI:
                 "password": "password123",
             },
         )
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "用户名已存在" in response.json()["detail"]
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert "用户名已存在" in response.json()["msg"]
 
     def test_login_success(self, client: TestClient):
         """测试登录成功"""
@@ -90,7 +90,7 @@ class TestAuthAPI:
         # 使用错误密码登录
         response = client.post("/api/v1/auth/login?username=wrongpwduser&password=wrong_password")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "用户名或密码错误" in response.json()["detail"]
+        assert "用户名或密码错误" in response.json()["msg"]
 
     def test_login_user_not_exist(self, client: TestClient):
         """测试登录用户不存在"""
@@ -201,7 +201,7 @@ class TestAuthAPI:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "旧密码错误" in response.json()["detail"]
+        assert "旧密码错误" in response.json()["msg"]
 
 
 class TestUserAPI:
@@ -256,8 +256,8 @@ class TestUserAPI:
             },
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "用户名已存在" in response.json()["detail"]
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert "用户名已存在" in response.json()["msg"]
 
     def test_create_user_invalid_email(self, client: TestClient, auth_headers: dict):
         """测试创建用户时邮箱格式错误"""
@@ -265,7 +265,7 @@ class TestUserAPI:
             "/api/v1/users",
             json={
                 "username": "testuser",
-                "email": "invalid-email",
+                "email": "not-an-email-at-all",
                 "nickname": "Test User",
                 "password": "test123456",
             },
@@ -371,7 +371,7 @@ class TestUserAPI:
         non_existent_id = str(uuid.uuid4())
         response = client.get(f"/api/v1/users/{non_existent_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "用户不存在" in response.json()["detail"]
+        assert "用户不存在" in response.json()["msg"]
 
     def test_update_user(self, client: TestClient, auth_headers: dict):
         """测试更新用户"""

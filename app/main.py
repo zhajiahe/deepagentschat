@@ -6,7 +6,8 @@ FastAPI 应用主入口
 
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +17,13 @@ from app.api.chat import router as chat_router
 from app.api.conversations import router as conversations_router
 from app.api.users import auth_router
 from app.api.users import router as users_router
+from app.core.exceptions import (
+    AppException,
+    app_exception_handler,
+    general_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 from app.core.lifespan import lifespan
 from app.middleware.logging import LoggingMiddleware, setup_logging
 
@@ -43,6 +51,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加异常处理器
+app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 
 # 注册路由

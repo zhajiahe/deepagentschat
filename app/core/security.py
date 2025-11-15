@@ -58,12 +58,14 @@ def create_tokens(data: dict) -> tuple[str, str]:
     return access_token, refresh_token
 
 
-def verify_access_token(token: str, credentials_exception):
+def verify_access_token(token: str):
     """验证访问令牌"""
+    from app.core.exceptions import raise_auth_error
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
-            raise credentials_exception
+            raise_auth_error("无效的访问令牌类型")
         # 从令牌中获取用户ID（UUID）
         user_id_str = payload.get("user_id")
         if isinstance(user_id_str, str):
@@ -71,8 +73,8 @@ def verify_access_token(token: str, credentials_exception):
         else:
             user_id = uuid.UUID(str(user_id_str))
         return user_id
-    except (JWTError, ValueError, TypeError) as e:
-        raise credentials_exception from e
+    except (JWTError, ValueError, TypeError):
+        raise_auth_error("无效的访问令牌")
 
 
 def verify_refresh_token(token: str, credentials_exception):

@@ -8,7 +8,7 @@ from app.core.config import settings
 # 创建异步引擎
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,  # 开发环境打印SQL，生产环境应设为False
+    echo=False,  # 开发环境打印SQL，生产环境应设为False
     future=True,
     pool_pre_ping=True,
 )

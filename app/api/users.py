@@ -6,10 +6,11 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import func, select
 
 from app.core.deps import CurrentSuperUser, CurrentUser, DBSession
+from app.core.exceptions import raise_auth_error, raise_business_error, raise_conflict_error, raise_not_found_error
 from app.core.security import create_tokens, get_password_hash, verify_password
 from app.models.base import BasePageQuery, BaseResponse, PageResponse, Token
 from app.models.user import User
@@ -47,18 +48,14 @@ async def login(
 
     # 验证用户和密码
     if not user or not verify_password(password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise_auth_error("用户名或密码错误")
+
+    # 此时user肯定不是None
+    assert user is not None
 
     # 检查用户状态
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="用户已被禁用",
-        )
+        raise_business_error("用户已被禁用")
 
     # 创建 token（user_id 转为字符串）
     access_token, refresh_token = create_tokens({"user_id": str(user.id)})
@@ -94,12 +91,12 @@ async def register(
     # 检查用户名是否已存在
     result = await db.execute(select(User).where(User.username == user_data.username, User.deleted == 0))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="用户名已存在")
+        raise_conflict_error("用户名已存在")
 
     # 检查邮箱是否已存在
     result = await db.execute(select(User).where(User.email == user_data.email, User.deleted == 0))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已存在")
+        raise_conflict_error("邮箱已存在")
 
     # 创建用户
     new_user = User(
@@ -168,7 +165,7 @@ async def update_current_user(
             select(User).where(User.email == user_data.email, User.id != current_user.id, User.deleted == 0)
         )
         if result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已被使用")
+            raise_conflict_error("邮箱已被使用")
         current_user.email = user_data.email
 
     # 更新昵称
@@ -205,17 +202,11 @@ async def change_password(
     """
     # 验证旧密码
     if not verify_password(password_data.old_password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="旧密码错误",
-        )
+        raise_business_error("旧密码错误")
 
     # 检查新旧密码是否相同
     if password_data.old_password == password_data.new_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="新密码不能与旧密码相同",
-        )
+        raise_business_error("新密码不能与旧密码相同")
 
     # 更新密码
     current_user.hashed_password = get_password_hash(password_data.new_password)
@@ -412,7 +403,7 @@ async def get_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+        raise_not_found_error("用户")
 
     return BaseResponse(
         success=True,
@@ -439,12 +430,12 @@ async def create_user(
     # 检查用户名是否已存在
     result = await db.execute(select(User).where(User.username == user_data.username, User.deleted == 0))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="用户名已存在")
+        raise_conflict_error("用户名已存在")
 
     # 检查邮箱是否已存在
     result = await db.execute(select(User).where(User.email == user_data.email, User.deleted == 0))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已存在")
+        raise_conflict_error("邮箱已存在")
 
     # 创建用户
     new_user = User(
@@ -488,7 +479,10 @@ async def update_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+        raise_not_found_error("用户")
+
+    # 此时user肯定不是None
+    assert user is not None
 
     # 更新字段
     if user_data.email is not None:
@@ -497,7 +491,7 @@ async def update_user(
             select(User).where(User.email == user_data.email, User.id != user_id, User.deleted == 0)
         )
         if result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已被使用")
+            raise_conflict_error("邮箱已被使用")
         user.email = user_data.email
 
     if user_data.nickname is not None:
@@ -538,7 +532,10 @@ async def delete_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+        raise_not_found_error("用户")
+
+    # 此时user肯定不是None
+    assert user is not None
 
     # 逻辑删除
     user.deleted = 1

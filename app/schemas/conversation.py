@@ -10,19 +10,21 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.validators import EnhancedBaseModel
 
-class ConversationCreate(BaseModel):
+
+class ConversationCreate(EnhancedBaseModel):
     """创建会话请求"""
 
     # user_id 从认证中获取，不再需要在请求中提供
-    title: str = Field(default="New Conversation", description="会话标题")
+    title: str = Field(default="New Conversation", min_length=1, max_length=200, description="会话标题")
     metadata: dict[str, Any] = Field(default_factory=dict, description="元数据")
 
 
-class ConversationUpdate(BaseModel):
+class ConversationUpdate(EnhancedBaseModel):
     """更新会话请求"""
 
-    title: str | None = Field(None, description="会话标题")
+    title: str | None = Field(None, min_length=1, max_length=200, description="会话标题")
     metadata: dict[str, Any] | None = Field(None, description="元数据")
 
 

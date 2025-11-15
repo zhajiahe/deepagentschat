@@ -6,15 +6,17 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from loguru import logger
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser
+from app.core.exceptions import raise_business_error, raise_internal_error, raise_not_found_error
 from app.core.lifespan import get_compiled_graph
 from app.models import Conversation, Message
+from app.models.base import BaseResponse, PageResponse
 from app.schemas import (
     ChatResponse,
     CheckpointResponse,
@@ -45,14 +47,16 @@ async def verify_conversation_ownership(thread_id: str, user_id: uuid.UUID, db: 
     )
     conversation = result.scalar_one_or_none()
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found or access denied")
+        raise_not_found_error("会话")
+    # 此时conversation肯定不是None
+    assert conversation is not None
     return conversation
 
 
 # ============= 会话管理接口 =============
 
 
-@router.post("", response_model=ConversationResponse)
+@router.post("", response_model=BaseResponse[ConversationResponse])
 async def create_conversation(conv: ConversationCreate, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
     创建新会话
@@ -74,19 +78,24 @@ async def create_conversation(conv: ConversationCreate, current_user: CurrentUse
     await db.commit()
     await db.refresh(conversation)
 
-    return ConversationResponse(
-        id=conversation.id,
-        thread_id=conversation.thread_id,
-        user_id=conversation.user_id,
-        title=conversation.title,
-        metadata=conversation.meta_data or {},
-        created_at=conversation.create_time,
-        updated_at=conversation.update_time,
-        message_count=0,
+    return BaseResponse(
+        success=True,
+        code=201,
+        msg="创建会话成功",
+        data=ConversationResponse(
+            id=conversation.id,
+            thread_id=conversation.thread_id,
+            user_id=conversation.user_id,
+            title=conversation.title,
+            metadata=conversation.meta_data or {},
+            created_at=conversation.create_time,
+            updated_at=conversation.update_time,
+            message_count=0,
+        ),
     )
 
 
-@router.get("", response_model=list[ConversationResponse])
+@router.get("", response_model=BaseResponse[PageResponse[ConversationResponse]])
 async def list_conversations(
     current_user: CurrentUser, skip: int = 0, limit: int = 20, db: AsyncSession = Depends(get_db)
 ):
@@ -130,10 +139,26 @@ async def list_conversations(
             )
         )
 
-    return response_list
+    # 获取总数
+    total_result = await db.execute(
+        select(func.count(Conversation.id)).where(Conversation.user_id == current_user.id, Conversation.is_active == 1)
+    )
+    total = total_result.scalar() or 0
+
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="获取会话列表成功",
+        data=PageResponse(
+            page_num=(skip // limit) + 1,
+            page_size=limit,
+            total=total,
+            items=response_list,
+        ),
+    )
 
 
-@router.get("/{thread_id}", response_model=ConversationDetailResponse)
+@router.get("/{thread_id}", response_model=BaseResponse[ConversationDetailResponse])
 async def get_conversation(thread_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
     获取单个会话详情
@@ -175,10 +200,15 @@ async def get_conversation(thread_id: str, current_user: CurrentUser, db: AsyncS
         for msg in messages
     ]
 
-    return ConversationDetailResponse(conversation=conv_response, messages=messages_data)
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="获取会话详情成功",
+        data=ConversationDetailResponse(conversation=conv_response, messages=messages_data),
+    )
 
 
-@router.patch("/{thread_id}")
+@router.patch("/{thread_id}", response_model=BaseResponse[dict])
 async def update_conversation(
     thread_id: str, update: ConversationUpdate, current_user: CurrentUser, db: AsyncSession = Depends(get_db)
 ):
@@ -204,10 +234,15 @@ async def update_conversation(
     conversation.update_time = utc_now()
     await db.commit()
 
-    return {"status": "updated", "thread_id": thread_id}
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="更新会话成功",
+        data={"status": "updated", "thread_id": thread_id},
+    )
 
 
-@router.delete("/{thread_id}")
+@router.delete("/{thread_id}", response_model=BaseResponse[dict])
 async def delete_conversation(
     thread_id: str, current_user: CurrentUser, hard_delete: bool = False, db: AsyncSession = Depends(get_db)
 ):
@@ -243,7 +278,12 @@ async def delete_conversation(
         conversation.is_active = 0
 
     await db.commit()
-    return {"status": "deleted", "thread_id": thread_id}
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="删除会话成功",
+        data={"status": "deleted", "thread_id": thread_id},
+    )
 
 
 @router.post("/{thread_id}/reset")
@@ -291,13 +331,13 @@ async def reset_conversation(thread_id: str, current_user: CurrentUser, db: Asyn
     except Exception as e:
         await db.rollback()
         logger.error(f"❌ Failed to reset conversation {thread_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to reset conversation: {str(e)}") from e
+        raise_internal_error(f"重置会话失败: {str(e)}")
 
 
 # ============= 消息管理接口 =============
 
 
-@router.get("/{thread_id}/messages", response_model=list[MessageResponse])
+@router.get("/{thread_id}/messages", response_model=BaseResponse[list[MessageResponse]])
 async def get_messages(
     thread_id: str, current_user: CurrentUser, skip: int = 0, limit: int = 50, db: AsyncSession = Depends(get_db)
 ):
@@ -325,7 +365,7 @@ async def get_messages(
     )
     messages = result.scalars().all()
 
-    return [
+    message_list = [
         MessageResponse(
             id=msg.id,
             role=msg.role,
@@ -336,11 +376,18 @@ async def get_messages(
         for msg in reversed(list(messages))
     ]
 
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="获取消息列表成功",
+        data=message_list,
+    )
+
 
 # ============= 消息管理接口 =============
 
 
-@router.post("/{thread_id}/messages/{message_id}/regenerate", response_model=ChatResponse)
+@router.post("/{thread_id}/messages/{message_id}/regenerate", response_model=BaseResponse[ChatResponse])
 async def regenerate_message(
     thread_id: str,
     message_id: int,
@@ -369,10 +416,13 @@ async def regenerate_message(
     message = result.scalar_one_or_none()
 
     if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
+        raise_not_found_error("消息")
+
+    # 此时message肯定不是None
+    assert message is not None
 
     if message.role != "assistant":
-        raise HTTPException(status_code=400, detail="只能重新生成助手消息")
+        raise_business_error("只能重新生成助手消息")
 
     # 找到该消息之前的用户消息
     result = await db.execute(
@@ -384,7 +434,10 @@ async def regenerate_message(
     user_message = result.scalar_one_or_none()
 
     if not user_message:
-        raise HTTPException(status_code=400, detail="找不到对应的用户消息")
+        raise_business_error("找不到对应的用户消息")
+
+    # 此时user_message肯定不是None
+    assert user_message is not None
 
     # 删除该消息及之后的所有消息（先提交删除操作）
     await db.execute(delete(Message).where(Message.thread_id == thread_id, Message.create_time >= message.create_time))
@@ -449,18 +502,23 @@ async def regenerate_message(
 
         await db.commit()
 
-        return ChatResponse(thread_id=thread_id, response=assistant_content, duration_ms=int(duration))
+        return BaseResponse(
+            success=True,
+            code=200,
+            msg="重新生成消息成功",
+            data=ChatResponse(thread_id=thread_id, response=assistant_content, duration_ms=int(duration)),
+        )
 
     except Exception as e:
         await db.rollback()
         logger.error(f"Regenerate error: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise_internal_error(str(e))
 
 
 # ============= 状态管理接口 =============
 
 
-@router.get("/{thread_id}/state", response_model=StateResponse)
+@router.get("/{thread_id}/state", response_model=BaseResponse[StateResponse])
 async def get_state(thread_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
     获取会话的 LangGraph 状态
@@ -489,20 +547,25 @@ async def get_state(thread_id: str, current_user: CurrentUser, db: AsyncSession 
             else:
                 created_at_str = str(state.created_at)
 
-        return StateResponse(
-            thread_id=thread_id,
-            values=state.values,
-            next=state.next,
-            metadata=state.metadata,
-            created_at=created_at_str,
-            parent_config=state.parent_config,
+        return BaseResponse(
+            success=True,
+            code=200,
+            msg="获取会话状态成功",
+            data=StateResponse(
+                thread_id=thread_id,
+                values=state.values,
+                next=state.next,
+                metadata=state.metadata,
+                created_at=created_at_str,
+                parent_config=state.parent_config,
+            ),
         )
     except Exception as e:
         logger.error(f"Get state error: {e}")
-        raise HTTPException(status_code=404, detail=f"State not found: {str(e)}") from e
+        raise_not_found_error(f"会话状态 (错误: {str(e)})")
 
 
-@router.get("/{thread_id}/checkpoints", response_model=CheckpointResponse)
+@router.get("/{thread_id}/checkpoints", response_model=BaseResponse[CheckpointResponse])
 async def get_checkpoints(
     thread_id: str, current_user: CurrentUser, limit: int = 10, db: AsyncSession = Depends(get_db)
 ):
@@ -536,16 +599,21 @@ async def get_checkpoints(
             if len(checkpoints) >= limit:
                 break
 
-        return CheckpointResponse(thread_id=thread_id, checkpoints=checkpoints)
+        return BaseResponse(
+            success=True,
+            code=200,
+            msg="获取检查点成功",
+            data=CheckpointResponse(thread_id=thread_id, checkpoints=checkpoints),
+        )
     except Exception as e:
         logger.error(f"Get checkpoints error: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise_internal_error(str(e))
 
 
 # ============= 导出/导入接口 =============
 
 
-@router.get("/{thread_id}/export", response_model=ConversationExportResponse, include_in_schema=False)
+@router.get("/{thread_id}/export", response_model=BaseResponse[ConversationExportResponse], include_in_schema=False)
 async def export_conversation(thread_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
     导出会话数据
@@ -574,25 +642,30 @@ async def export_conversation(thread_id: str, current_user: CurrentUser, db: Asy
     except Exception:
         state_values = None
 
-    return ConversationExportResponse(
-        conversation={
-            "thread_id": conversation.thread_id,
-            "user_id": conversation.user_id,
-            "title": conversation.title,
-            "metadata": conversation.meta_data or {},
-            "created_at": conversation.create_time.isoformat(),
-            "updated_at": conversation.update_time.isoformat(),
-        },
-        messages=[
-            {
-                "role": msg.role,
-                "content": msg.content,
-                "metadata": msg.meta_data or {},
-                "created_at": msg.create_time.isoformat(),
-            }
-            for msg in messages
-        ],
-        state=state_values,
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="导出会话成功",
+        data=ConversationExportResponse(
+            conversation={
+                "thread_id": conversation.thread_id,
+                "user_id": conversation.user_id,
+                "title": conversation.title,
+                "metadata": conversation.meta_data or {},
+                "created_at": conversation.create_time.isoformat(),
+                "updated_at": conversation.update_time.isoformat(),
+            },
+            messages=[
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "metadata": msg.meta_data or {},
+                    "created_at": msg.create_time.isoformat(),
+                }
+                for msg in messages
+            ],
+            state=state_values,
+        ),
     )
 
 
@@ -643,13 +716,18 @@ async def import_conversation(
         except Exception as e:
             logger.warning(f"Could not restore state: {e}")
 
-    return {"thread_id": thread_id, "status": "imported"}
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="导入会话成功",
+        data={"thread_id": thread_id, "status": "imported"},
+    )
 
 
 # ============= 搜索接口 =============
 
 
-@router.post("/search", response_model=SearchResponse)
+@router.post("/search", response_model=BaseResponse[SearchResponse])
 async def search_conversations(request: SearchRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
     搜索会话和消息
@@ -688,13 +766,18 @@ async def search_conversations(request: SearchRequest, current_user: CurrentUser
             }
         )
 
-    return SearchResponse(query=request.query, results=results)
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="搜索完成",
+        data=SearchResponse(query=request.query, results=results),
+    )
 
 
 # ============= 统计接口 =============
 
 
-@router.get("/users/stats", response_model=UserStatsResponse)
+@router.get("/users/stats", response_model=BaseResponse[UserStatsResponse])
 async def get_user_stats(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
     获取用户统计信息
@@ -729,12 +812,17 @@ async def get_user_stats(current_user: CurrentUser, db: AsyncSession = Depends(g
     )
     recent_conversations = recent_result.scalars().all()
 
-    return UserStatsResponse(
-        user_id=str(current_user.id),
-        total_conversations=total_conversations,
-        total_messages=total_messages,
-        recent_conversations=[
-            {"thread_id": conv.thread_id, "title": conv.title, "updated_at": conv.update_time.isoformat()}
-            for conv in recent_conversations
-        ],
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg="获取统计信息成功",
+        data=UserStatsResponse(
+            user_id=str(current_user.id),
+            total_conversations=total_conversations,
+            total_messages=total_messages,
+            recent_conversations=[
+                {"thread_id": conv.thread_id, "title": conv.title, "updated_at": conv.update_time.isoformat()}
+                for conv in recent_conversations
+            ],
+        ),
     )

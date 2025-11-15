@@ -24,7 +24,9 @@ class TestConversationCRUD:
             headers=auth_headers,
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        data = response_data["data"]
         assert "thread_id" in data
         assert data["title"] == "Test Conversation"
         assert data["message_count"] == 0
@@ -51,9 +53,12 @@ class TestConversationCRUD:
         # 获取列表
         response = client.get("/api/v1/conversations", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        conversations = response.json()
-        assert isinstance(conversations, list)
-        assert len(conversations) >= 3
+        data = response.json()
+        assert data["success"] is True
+        page_data = data["data"]
+        assert "items" in page_data
+        assert isinstance(page_data["items"], list)
+        assert len(page_data["items"]) >= 3
 
     @pytest.mark.asyncio
     async def test_get_conversation_detail(self, client: TestClient, auth_headers: dict, db, current_user_id):
@@ -82,7 +87,9 @@ class TestConversationCRUD:
         # 获取详情
         response = client.get(f"/api/v1/conversations/{thread_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        data = response_data["data"]
         assert "conversation" in data
         assert "messages" in data
         assert data["conversation"]["thread_id"] == thread_id
@@ -111,12 +118,14 @@ class TestConversationCRUD:
             headers=auth_headers,
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        data = response_data["data"]
         assert data["status"] == "updated"
 
         # 验证更新
         response = client.get(f"/api/v1/conversations/{thread_id}", headers=auth_headers)
-        assert response.json()["conversation"]["title"] == "Updated Title"
+        assert response.json()["data"]["conversation"]["title"] == "Updated Title"
 
     @pytest.mark.asyncio
     async def test_delete_conversation_soft(self, client: TestClient, auth_headers: dict, db, current_user_id):
@@ -141,7 +150,8 @@ class TestConversationCRUD:
 
         # 验证会话已软删除（不在列表中）
         response = client.get("/api/v1/conversations", headers=auth_headers)
-        conversations = response.json()
+        page_data = response.json()["data"]
+        conversations = page_data["items"]
         thread_ids_list = [c["thread_id"] for c in conversations]
         assert thread_id not in thread_ids_list
 
@@ -238,7 +248,9 @@ class TestConversationMessages:
         # 获取消息
         response = client.get(f"/api/v1/conversations/{thread_id}/messages", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        messages = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        messages = response_data["data"]
         assert len(messages) == 5
 
     @pytest.mark.asyncio
@@ -269,13 +281,17 @@ class TestConversationMessages:
         # 获取第一页
         response = client.get(f"/api/v1/conversations/{thread_id}/messages?skip=0&limit=5", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        messages = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        messages = response_data["data"]
         assert len(messages) == 5
 
         # 获取第二页
         response = client.get(f"/api/v1/conversations/{thread_id}/messages?skip=5&limit=5", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        messages = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        messages = response_data["data"]
         assert len(messages) == 5
 
 
@@ -322,7 +338,9 @@ class TestConversationState:
         # 获取检查点
         response = client.get(f"/api/v1/conversations/{thread_id}/checkpoints", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        data = response_data["data"]
         assert "thread_id" in data
         assert "checkpoints" in data
         assert isinstance(data["checkpoints"], list)
@@ -359,7 +377,9 @@ class TestConversationExportImport:
         # 导出会话
         response = client.get(f"/api/v1/conversations/{thread_id}/export", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        data = response_data["data"]
         assert "conversation" in data
         assert "messages" in data
         assert len(data["messages"]) == 3
@@ -386,7 +406,9 @@ class TestConversationExportImport:
             headers=auth_headers,
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        data = response_data["data"]
         assert "thread_id" in data
         assert data["status"] == "imported"
 
@@ -394,9 +416,11 @@ class TestConversationExportImport:
         thread_id = data["thread_id"]
         response = client.get(f"/api/v1/conversations/{thread_id}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        conv_data = response.json()
-        assert conv_data["conversation"]["title"] == "Imported Conversation"
-        assert len(conv_data["messages"]) == 2
+        # 验证响应格式正确
+        imported_data = response.json()["data"]
+        assert imported_data["conversation"]["thread_id"] == thread_id
+        assert imported_data["conversation"]["title"] == "Imported Conversation"
+        assert len(imported_data["messages"]) == 2
 
 
 class TestMessageRegenerate:
@@ -443,7 +467,9 @@ class TestMessageRegenerate:
             headers=auth_headers,
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        assert response_data["success"] is True
+        data = response_data["data"]
         assert "thread_id" in data
         assert "response" in data
         assert "duration_ms" in data
@@ -516,7 +542,7 @@ class TestMessageRegenerate:
             headers=auth_headers,
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "只能重新生成助手消息" in response.json()["detail"]
+        assert "只能重新生成助手消息" in response.json()["msg"]
 
     @pytest.mark.asyncio
     async def test_regenerate_message_unauthorized(self, client: TestClient, db, current_user_id):

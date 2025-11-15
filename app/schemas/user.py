@@ -9,38 +9,68 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.validators import (
+    EnhancedBaseModel,
+    validate_email_domain,
+    validate_nickname,
+    validate_password_strength,
+    validate_username,
+)
 
-class UserBase(BaseModel):
+
+class UserBase(EnhancedBaseModel):
     """用户基础字段"""
 
     username: str = Field(..., min_length=3, max_length=50, description="用户名")
     email: EmailStr = Field(..., description="邮箱")
-    nickname: str = Field(..., min_length=1, max_length=50, description="昵称")
+    nickname: str = Field(..., min_length=2, max_length=50, description="昵称")
+
+    @field_validator("username")
+    @classmethod
+    def validate_username_field(cls, v: str) -> str:
+        return validate_username(v)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_field(cls, v: EmailStr) -> EmailStr:
+        return validate_email_domain(str(v))
+
+    @field_validator("nickname")
+    @classmethod
+    def validate_nickname_field(cls, v: str) -> str:
+        return validate_nickname(v)
 
 
 class UserCreate(UserBase):
     """创建用户请求"""
 
-    password: str = Field(..., min_length=6, max_length=128, description="密码")
+    password: str = Field(..., min_length=8, max_length=128, description="密码")
     is_active: bool = Field(default=True, description="是否激活")
     is_superuser: bool = Field(default=False, description="是否超级管理员")
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, v: str) -> str:
-        """验证密码强度"""
-        if len(v) < 6:
-            raise ValueError("密码长度不能少于6位")
-        return v
+    def validate_password_field(cls, v: str) -> str:
+        return validate_password_strength(v)
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(EnhancedBaseModel):
     """更新用户请求"""
 
     email: EmailStr | None = Field(default=None, description="邮箱")
-    nickname: str | None = Field(default=None, min_length=1, max_length=50, description="昵称")
+    nickname: str | None = Field(default=None, min_length=2, max_length=50, description="昵称")
     is_active: bool | None = Field(default=None, description="是否激活")
     is_superuser: bool | None = Field(default=None, description="是否超级管理员")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_field(cls, v: EmailStr) -> EmailStr:
+        return validate_email_domain(str(v))
+
+    @field_validator("nickname")
+    @classmethod
+    def validate_nickname_field(cls, v: str) -> str:
+        return validate_nickname(v)
 
 
 class UserResponse(UserBase):
@@ -63,16 +93,13 @@ class UserListQuery(BaseModel):
     is_superuser: bool | None = Field(default=None, description="是否超级管理员")
 
 
-class PasswordChange(BaseModel):
+class PasswordChange(EnhancedBaseModel):
     """修改密码请求"""
 
-    old_password: str = Field(..., min_length=6, max_length=128, description="旧密码")
-    new_password: str = Field(..., min_length=6, max_length=128, description="新密码")
+    old_password: str = Field(..., min_length=1, description="旧密码")
+    new_password: str = Field(..., min_length=8, max_length=128, description="新密码")
 
     @field_validator("new_password")
     @classmethod
-    def validate_password(cls, v: str) -> str:
-        """验证新密码"""
-        if len(v) < 6:
-            raise ValueError("密码长度不能少于6位")
-        return v
+    def validate_password_field(cls, v: str) -> str:
+        return validate_password_strength(v)

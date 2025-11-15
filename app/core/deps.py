@@ -6,12 +6,13 @@
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.exceptions import raise_auth_error, raise_permission_error
 from app.core.security import verify_access_token
 from app.models.user import User
 
@@ -38,30 +39,28 @@ async def get_current_user(
         User: 当前用户对象
 
     Raises:
-        HTTPException: 认证失败时抛出 401 错误
+        AuthenticationException: 认证失败时抛出
+        AuthorizationException: 用户被禁用时抛出
     """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="认证失败，请重新登录",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
     # 验证 token 并获取用户ID
     token = credentials.credentials
-    user_id = verify_access_token(token, credentials_exception)
+    try:
+        user_id = verify_access_token(token)
+    except Exception:
+        raise_auth_error()
 
     # 从数据库获取用户
     result = await db.execute(select(User).where(User.id == user_id, User.deleted == 0))
     user = result.scalar_one_or_none()
 
     if user is None:
-        raise credentials_exception
+        raise_auth_error()
+
+    # 此时user肯定不是None
+    assert user is not None
 
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="用户已被禁用",
-        )
+        raise_permission_error("用户已被禁用")
 
     return user
 
@@ -79,13 +78,10 @@ async def get_current_active_user(
         User: 当前用户对象
 
     Raises:
-        HTTPException: 用户未激活时抛出 403 错误
+        AuthorizationException: 用户未激活时抛出
     """
     if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="用户未激活",
-        )
+        raise_permission_error("用户未激活")
     return current_user
 
 
@@ -102,13 +98,10 @@ async def get_current_superuser(
         User: 当前用户对象
 
     Raises:
-        HTTPException: 用户不是超级管理员时抛出 403 错误
+        AuthorizationException: 用户不是超级管理员时抛出
     """
     if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
+        raise_permission_error("权限不足")
     return current_user
 
 
