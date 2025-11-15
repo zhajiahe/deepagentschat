@@ -9,7 +9,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 
 def run_locust_test(users: int, run_time: str = "1m", base_url: str = "http://localhost:8000"):
