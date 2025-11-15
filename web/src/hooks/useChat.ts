@@ -85,10 +85,28 @@ export const useChat = () => {
                 }
                 try {
                   const parsed = JSON.parse(data);
-                  if (parsed.content) {
+
+                  // 处理不同类型的事件
+                  if (parsed.type === 'content' && parsed.content) {
+                    // LLM 内容流
+                    accumulatedContent += parsed.content;
+                    updateMessage(assistantMessageId, accumulatedContent);
+                  } else if (parsed.type === 'tool_start') {
+                    // 工具调用开始
+                    const toolInfo = `\n\n🔧 **调用工具**: ${parsed.tool_name}\n📥 **输入**: ${JSON.stringify(parsed.tool_input, null, 2)}\n`;
+                    accumulatedContent += toolInfo;
+                    updateMessage(assistantMessageId, accumulatedContent);
+                  } else if (parsed.type === 'tool_end') {
+                    // 工具调用结束
+                    const toolResult = `\n✅ **结果**: ${parsed.tool_output}\n\n`;
+                    accumulatedContent += toolResult;
+                    updateMessage(assistantMessageId, accumulatedContent);
+                  } else if (parsed.content) {
+                    // 兼容旧格式（没有type字段）
                     accumulatedContent += parsed.content;
                     updateMessage(assistantMessageId, accumulatedContent);
                   }
+
                   if (parsed.stopped) {
                     // 流式被停止
                     break;

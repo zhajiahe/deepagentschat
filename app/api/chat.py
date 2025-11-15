@@ -242,8 +242,10 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                     yield f"data: {json.dumps({'stopped': True, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
                     break
 
-                # 处理 on_chat_model_stream 事件以获取逐token输出
+                # 处理不同类型的事件
                 event_type = event.get("event")
+
+                # 处理 LLM token 流
                 if event_type == "on_chat_model_stream":
                     chunk_data = event.get("data", {})
                     if "chunk" in chunk_data:
@@ -252,7 +254,21 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                             chunk_text = chunk_obj.content
                             assistant_content += chunk_text
                             # 发送增量内容
-                            yield f"data: {json.dumps({'content': chunk_text, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                            yield f"data: {json.dumps({'type': 'content', 'content': chunk_text, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+
+                # 处理工具调用开始
+                elif event_type == "on_tool_start":
+                    tool_data = event.get("data", {})
+                    tool_name = event.get("name", "unknown")
+                    tool_input = tool_data.get("input", {})
+                    yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': tool_name, 'tool_input': tool_input, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+
+                # 处理工具调用结束
+                elif event_type == "on_tool_end":
+                    tool_data = event.get("data", {})
+                    tool_name = event.get("name", "unknown")
+                    tool_output = tool_data.get("output")
+                    yield f"data: {json.dumps({'type': 'tool_end', 'tool_name': tool_name, 'tool_output': str(tool_output), 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
 
                 # 收集最终消息用于保存
                 elif event_type == "on_chain_end":
