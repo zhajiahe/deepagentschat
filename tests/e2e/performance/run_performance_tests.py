@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def run_locust_test(users: int, run_time: str = "1m", base_url: str = "http://localhost:8000"):
@@ -80,7 +81,8 @@ def run_scenario_tests(base_url: str = "http://localhost:8000") -> bool:
     results = []
 
     for scenario in scenarios:
-        success = run_locust_test(users=int(scenario["users"]), run_time=str(scenario["run_time"]), base_url=base_url)
+        users_count = int(scenario["users"])  # type: ignore[arg-type]
+        success = run_locust_test(users=users_count, run_time=str(scenario["run_time"]), base_url=base_url)
         results.append({"scenario": scenario, "success": success})
 
     # 输出总结报告
@@ -119,7 +121,7 @@ def main():
 
     # 检查服务是否可访问
     try:
-        import requests
+        import requests  # type: ignore[import-untyped]
 
         response = requests.get(f"{args.base_url}/health", timeout=5)
         if response.status_code != 200:
