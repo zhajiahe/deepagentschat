@@ -223,6 +223,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
     async def event_generator():
         all_messages = []
         stopped = False
+        assistant_content = ""  # 累积助手消息内容
         # 注册任务（使用当前协程作为任务标识）
         current_task = asyncio.current_task()
         if current_task:
@@ -230,9 +231,9 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
 
         try:
             compiled_graph = get_compiled_graph()
-            # 使用异步 stream
+            # 使用异步 stream with updates mode for incremental output
             async for event in compiled_graph.astream(
-                {"messages": [HumanMessage(content=request.message)]}, config, stream_mode="values"
+                {"messages": [HumanMessage(content=request.message)]}, config, stream_mode="updates"
             ):
                 # 检查是否被停止
                 if await task_manager.is_stopped(thread_id):
@@ -241,17 +242,22 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                     yield f"data: {json.dumps({'stopped': True, 'thread_id': thread_id})}\n\n"
                     break
 
-                if "messages" in event and event["messages"]:
-                    all_messages = event["messages"]
-                    # 只发送助手消息的内容，跳过用户消息
-                    # 第一条消息是用户消息，从第二条开始才是助手消息
-                    if len(all_messages) > 1:
-                        last_message = all_messages[-1]
-                        # 确保最后一条消息不是用户消息
-                        if hasattr(last_message, "type") and str(last_message.type) != "human":
-                            if hasattr(last_message, "content"):
-                                chunk = last_message.content
-                                yield f"data: {json.dumps({'content': chunk, 'thread_id': thread_id})}\n\n"
+                # 处理 updates 模式的事件
+                for _node_name, node_output in event.items():
+                    if "messages" in node_output:
+                        messages = node_output["messages"]
+                        if messages:
+                            last_message = messages[-1]
+                            # 只处理助手消息
+                            if hasattr(last_message, "type") and str(last_message.type) != "human":
+                                if hasattr(last_message, "content"):
+                                    new_content = last_message.content
+                                    # 计算增量内容
+                                    if len(new_content) > len(assistant_content):
+                                        chunk = new_content[len(assistant_content) :]
+                                        assistant_content = new_content
+                                        yield f"data: {json.dumps({'content': chunk, 'thread_id': thread_id})}\n\n"
+                                    all_messages.append(last_message)
 
             # 如果被停止，不保存消息
             if stopped:

@@ -53,6 +53,7 @@ def get_agent(checkpointer: Any | None = None) -> Runnable:
         base_url=os.getenv("SILICONFLOW_API_BASE"),
         max_completion_tokens=500,
         temperature=0,
+        streaming=True,  # 启用流式输出
         extra_body={"thinking_budget": 20},
     )
     agent: Runnable = create_agent(model, tools=[math_tool], checkpointer=checkpointer)
