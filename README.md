@@ -1,355 +1,203 @@
 # 从零到一：构建现代化的 FastAPI + LangGraph 对话系统
 
-> 一个集成了用户认证、LangGraph 对话系统、完整测试和代码质量保证的 FastAPI 后端模板项目
+> 一个集成了用户认证、LangGraph 对话系统和现代化前端的 FastAPI 后端模板项目
 
 ## 📖 项目简介
 
-这是一个基于 FastAPI + SQLAlchemy 2.0 + LangGraph 的现代化后端项目模板。它不仅提供了完整的用户认证系统，还集成了 LangGraph 对话系统，支持会话管理、状态持久化、消息历史等功能。项目采用异步编程范式，遵循最佳实践，包含完整的测试覆盖和代码质量保证工具。
+这是一个基于 FastAPI 和 LangGraph 的现代化后端项目模板，集成了完整的用户认证系统和对话系统。项目包含前后端代码，提供了一个完整的 AI 对话应用模板。
 
 ### ✨ 核心特性
 
-- 🚀 **现代化技术栈**：FastAPI + SQLAlchemy 2.0 + LangGraph + Pydantic v2
-- 🔐 **完整的认证系统**：JWT 双令牌、密码加密、资料更新、密码重置
-- 🧑‍💼 **用户个性化设置**：内置 `UserSettings`，支持默认模型/温度/Token、主题、语言等偏好
-- 💬 **LangGraph 对话系统**：流式/非流式对话、状态持久化、检查点、消息再生成与重置
-- 🗂️ **会话运营工具**：会话 CRUD、消息历史、导出/导入、全文搜索、用户级统计
-- 📊 **数据库管理**：Alembic 迁移、异步 ORM、连接池管理
-- 🧪 **测试覆盖**：集成测试、单元测试、测试覆盖率
-- 🔍 **代码质量**：Ruff、MyPy、Pre-commit 钩子
-- 📝 **结构化日志**：Loguru 日志系统、请求追踪
+- 🚀 **现代化后端**：FastAPI + LangGraph + SQLAlchemy
+- 🔐 **用户认证**：JWT 令牌、用户注册/登录、权限管理
+- 💬 **对话系统**：流式/非流式对话、会话管理、状态持久化
+- 🎨 **现代化前端**：React + TypeScript + shadcn/ui 组件库
+- 🧪 **测试覆盖**：后端集成测试、前端组件测试
+- 🔍 **代码质量**：自动格式化、类型检查、Git 钩子
 
 ## 🎯 适用场景
 
-这个模板适合以下场景：
-
-- 快速启动 FastAPI 项目，无需从零配置
-- 构建需要用户认证的 Web API 服务
-- 开发基于 LangGraph 的对话/聊天应用
-- 学习 FastAPI 和异步编程最佳实践
-- 作为企业级项目的起点模板
-
-## 🏗️ 技术架构
-
-### 核心技术栈
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| FastAPI | 0.121+ | 现代化 Web 框架 |
-| SQLAlchemy | 2.0+ | 异步 ORM |
-| LangGraph | 1.0+ | 对话流程编排 |
-| LangChain | 1.0+ | LLM 应用开发 |
-| Pydantic | 2.12+ | 数据验证 |
-| Alembic | 1.17+ | 数据库迁移 |
-| Loguru | 0.7+ | 日志系统 |
-| Ruff | 0.14+ | 代码检查 |
-| MyPy | 1.18+ | 类型检查 |
-
-### 项目结构
-
-```
-fastapi-template/
-├── app/                          # 应用核心代码
-│   ├── api/                      # API 路由层
-│   │   ├── users.py              # 用户管理 API
-│   │   ├── chat.py               # 对话 API (LangGraph)
-│   │   └── conversations.py     # 会话管理 API
-│   ├── core/                     # 核心配置模块
-│   │   ├── config.py             # 配置管理 (环境变量)
-│   │   ├── database.py           # 数据库连接和会话管理
-│   │   ├── deps.py               # 依赖注入 (认证、权限等)
-│   │   ├── lifespan.py           # 应用生命周期管理
-│   │   ├── security.py           # JWT 认证和密码加密
-│   │   ├── graph.py              # LangGraph 图定义
-│   │   └── checkpointer.py       # LangGraph 检查点管理
-│   ├── middleware/               # 中间件
-│   │   └── logging.py            # 请求日志中间件
-│   ├── models/                   # SQLAlchemy 数据库模型
-│   │   ├── base.py               # 基础模型和 Mixin
-│   │   ├── user.py               # 用户模型
-│   │   ├── conversation.py       # 会话模型
-│   │   ├── message.py            # 消息模型
-│   │   ├── execution_log.py      # 执行日志模型
-│   │   └── user_settings.py      # 用户个性化设置
-│   ├── schemas/                  # Pydantic 数据模型
-│   │   ├── user.py               # 用户 Schema
-│   │   ├── chat.py               # 对话 Schema
-│   │   ├── conversation.py       # 会话 Schema
-│   │   └── user_settings.py      # 用户设置 Schema
-│   ├── utils/                    # 工具函数
-│   │   └── datetime.py           # 日期时间工具
-│   ├── sample_agent.py           # LangGraph 示例 Agent
-│   └── main.py                   # 应用入口和路由注册
-├── alembic/                      # 数据库迁移
-│   ├── versions/                 # 迁移脚本版本
-│   └── env.py                    # Alembic 配置
-├── scripts/                      # 脚本工具
-│   ├── create_superuser.py       # 创建超级管理员
-│   └── init_db.py                # 初始化数据库
-├── tests/                        # 测试代码
-│   ├── integration/              # 集成测试
-│   │   ├── test_user_route.py    # 用户 API 测试
-│   │   ├── test_chat_route.py    # 对话 API 测试
-│   │   └── test_conversations_route.py  # 会话 API 测试
-│   └── conftest.py               # Pytest 配置
-├── docs/                         # 文档
-│   └── AsyncSqliteSaver工作原理.md  # LangGraph 检查点原理
-├── logs/                         # 日志目录
-├── .env                          # 环境变量配置
-├── pyproject.toml                # 项目配置和依赖
-├── Makefile                      # 常用命令集合
-└── README.md                     # 项目说明文档
-```
+- 快速构建 AI 对话应用
+- 学习 FastAPI + React 开发
+- 企业级项目模板
+- LLM 应用后端开发
 
 ## 🚀 快速开始
 
 ### 1. 环境要求
 
 - Python 3.12+
+- Node.js 18+ (用于前端)
 - uv（推荐的 Python 包管理器）
 
-### 2. 安装依赖
+### 2. 克隆并安装
 
 ```bash
-# 安装 uv（如果尚未安装）
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
 # 克隆项目
 git clone https://github.com/zhajiahe/fastapi-template.git
 cd fastapi-template
 
-# 安装依赖
+# 安装后端依赖
 uv sync
+
+# 安装前端依赖
+cd web
+pnpm install
+cd ..
 ```
 
 ### 3. 配置环境变量
 
 创建 `.env` 文件：
 
-```bash
-# 数据库配置
+```env
+# 数据库
 DATABASE_URL=sqlite+aiosqlite:///./langgraph_app.db
 
-# JWT 配置（生产环境务必修改）
+# JWT 配置
 SECRET_KEY=your-secret-key-change-in-production
 REFRESH_SECRET_KEY=your-refresh-secret-key-change-in-production
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
 
 # 应用配置
 APP_NAME=FastAPI-Template
 DEBUG=true
 
-# LangGraph 配置
-CHECKPOINT_DB_PATH=./langgraph_app.db
-
-# LangChain / SiliconFlow 示例配置
+# LLM 配置（可选）
 SILICONFLOW_API_KEY=your-api-key
-SILICONFLOW_API_BASE=https://api.siliconflow.cn/v1
 SILICONFLOW_LLM_MODEL=Qwen/Qwen3-8B
 ```
 
 ### 4. 初始化数据库
 
 ```bash
-# 使用 Makefile
+# 运行数据库迁移
 make db-upgrade
 
-# 或直接使用 Alembic
-uv run alembic upgrade head
-```
-
-### 5. 创建超级管理员
-
-```bash
+# 创建超级管理员
 uv run python scripts/create_superuser.py
 ```
 
-### 6. 启动开发服务器
+### 5. 启动服务
 
 ```bash
-# 使用 Makefile
+# 启动后端（另一个终端）
 make dev
 
-# 或直接使用 uvicorn
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 启动前端（另一个终端）
+cd web
+pnpm dev
 ```
 
-访问 http://localhost:8000/docs 查看交互式 API 文档。
+访问：
+- 后端 API：http://localhost:8000/docs
+- 前端应用：http://localhost:5173
 
-## 💡 核心功能详解
+## 🏗️ 项目结构
 
-### 1. 用户认证系统
+```
+fastapi-template/
+├── app/                    # 后端核心代码
+│   ├── api/               # API 路由
+│   ├── core/              # 核心配置
+│   ├── models/            # 数据库模型
+│   ├── schemas/           # 数据验证
+│   └── main.py            # 应用入口
+├── web/                   # 前端代码
+│   ├── src/               # React 源代码
+│   ├── package.json       # 前端依赖
+│   └── tailwind.config.ts # 样式配置
+├── tests/                 # 测试代码
+├── alembic/               # 数据库迁移
+├── .env                   # 环境变量
+├── pyproject.toml         # 后端依赖
+└── README.md
+```
 
-项目实现了完整的用户认证和授权系统：
+## 💡 主要功能
 
-- **用户注册与登录**：支持用户名/邮箱注册，JWT 令牌认证
-- **双令牌机制**：Access Token（短期）和 Refresh Token（长期）
-- **密码安全**：使用 Bcrypt 进行密码加密
-- **权限管理**：支持普通用户和超级管理员角色
-- **用户信息管理**：获取当前用户信息、修改密码等
+### 后端功能
 
-### 2. LangGraph 对话系统
+- **用户认证**：注册、登录、JWT 认证、用户管理
+- **对话系统**：创建会话、发送消息、流式响应、会话管理
+- **用户设置**：个性化配置、主题切换、语言选择
 
-集成了 LangGraph 对话流程编排系统：
+### 前端功能
 
-- **异步对话接口**：支持非流式响应与 SSE 流式输出
-- **对话停止功能**：支持流式和非流式对话的中途停止，使用任务管理器跟踪和管理正在运行的任务
-- **会话生命周期**：创建、查询、更新、删除、重置、硬删除
-- **消息操作**：完整的消息历史，并支持重新生成指定助手回复
-- **状态持久化**：使用 AsyncSqliteSaver 保留图状态，随时恢复
-- **检查点管理**：查看历史检查点，支持时间旅行能力
-- **会话导出/导入**：一键导出对话、消息与状态并可导入恢复
-- **全文搜索**：在当前用户范围内搜索消息内容
-- **用户统计**：获取会话 / 消息数量与最近会话概览
-
-### 3. 数据库层
-
-采用 SQLAlchemy 2.0+ 异步 ORM：
-
-- **异步操作**：所有数据库操作都是异步的，不阻塞事件循环
-- **连接池管理**：自动管理数据库连接池
-- **事务管理**：自动处理事务提交和回滚
-- **通用基础模型**：包含 ID、创建时间、更新时间、逻辑删除等通用字段
-- **数据库迁移**：使用 Alembic 进行版本化数据库迁移
-
-### 4. 代码质量保证
-
-项目集成了完整的代码质量工具链：
-
-- **Ruff**：快速的代码检查和格式化工具
-- **MyPy**：静态类型检查，确保类型安全
-- **Pytest**：单元测试和集成测试框架
-- **Pre-commit**：Git 提交前自动运行检查
-- **测试覆盖率**：支持生成测试覆盖率报告
-
-### 5. 日志系统
-
-使用 Loguru 实现结构化日志：
-
-- **结构化日志**：JSON 格式的日志输出
-- **请求追踪**：每个请求都有唯一的请求 ID
-- **日志轮转**：自动按大小和时间轮转日志文件
-- **错误日志**：错误日志单独记录
-- **彩色输出**：控制台输出支持彩色显示
-
-### 6. 用户个性化设置
-
-通过 `user_settings` 表为每位用户保存偏好：
-
-- **默认 LLM 参数**：记录默认模型、温度和最大 Token
-- **界面偏好**：主题（light/dark）与语言（zh-CN/en 等）随时切换
-- **扩展字段**：`settings` JSON 可存储更多自定义配置
-- **API 通路**：`GET/PUT /api/v1/users/settings` 秒级读写当前用户配置
-
-## 📚 API 端点概览
-
-### 认证相关
-
-- `POST /api/v1/auth/register` - 用户注册
-- `POST /api/v1/auth/login` - 用户登录
-- `GET /api/v1/auth/me` - 获取当前用户信息
-- `PUT /api/v1/auth/me` - 更新当前用户信息
-- `POST /api/v1/auth/reset-password` - 修改密码
-
-### 用户管理（需要管理员权限）
-
-- `GET /api/v1/users` - 获取用户列表（分页）
-- `GET /api/v1/users/{user_id}` - 获取用户详情
-- `POST /api/v1/users` - 创建用户
-- `PUT /api/v1/users/{user_id}` - 更新用户信息
-- `DELETE /api/v1/users/{user_id}` - 删除用户
-
-### 用户个性化设置
-
-- `GET /api/v1/users/settings` - 获取用户设置
-- `PUT /api/v1/users/settings` - 更新默认模型、主题、语言等偏好
-
-### 对话系统
-
-- `POST /api/v1/chat` - 发送消息（非流式）
-- `POST /api/v1/chat/stream` - 发送消息（流式 SSE）
-- `POST /api/v1/chat/stop` - 停止正在进行的对话（流式/非流式）
-- `POST /api/v1/conversations` - 创建会话
-- `GET /api/v1/conversations` - 获取会话列表
-- `GET /api/v1/conversations/{thread_id}` - 获取会话详情
-- `PATCH /api/v1/conversations/{thread_id}` - 更新会话
-- `DELETE /api/v1/conversations/{thread_id}` - 删除会话
-- `POST /api/v1/conversations/{thread_id}/reset` - 重置会话
-- `GET /api/v1/conversations/{thread_id}/messages` - 获取消息历史
-- `POST /api/v1/conversations/{thread_id}/messages/{message_id}/regenerate` - 重新生成助手消息
-- `GET /api/v1/conversations/{thread_id}/state` - 获取会话状态
-- `GET /api/v1/conversations/{thread_id}/checkpoints` - 获取检查点历史
-- `GET /api/v1/conversations/{thread_id}/export` - 导出会话
-- `POST /api/v1/conversations/import` - 导入会话
-- `POST /api/v1/conversations/search` - 搜索会话和消息
-- `GET /api/v1/conversations/users/stats` - 获取用户统计
-
-### 系统管理
-
-- `GET /health` - 健康检查
-- `GET /` - 根路径
-- `GET /docs` - Swagger UI
-- `GET /redoc` - ReDoc 文档
+- **现代化 UI**：使用 shadcn/ui 组件库，统一设计语言
+- **响应式设计**：支持桌面和移动端
+- **实时交互**：流式消息显示、工具调用信息
+- **状态管理**：Zustand 管理用户状态和会话
 
 ## 🛠️ 常用命令
 
-项目使用 Makefile 简化常用操作：
+### 后端命令
 
 ```bash
-make help          # 显示帮助信息
-make install       # 安装依赖
 make dev           # 启动开发服务器
 make test          # 运行测试
 make lint          # 代码检查
-make lint-fix      # 代码检查并自动修复
-make format        # 格式化代码
-make type-check    # 类型检查
-make db-migrate msg="描述"  # 创建数据库迁移
-make db-upgrade    # 升级数据库
-make db-downgrade  # 降级数据库
-make clean         # 清理临时文件
+make db-upgrade    # 数据库迁移
+make clean         # 清理
 ```
 
-## 🧪 运行测试
+### 前端命令
 
 ```bash
-# 运行所有测试
-make test
-
-# 运行特定测试文件
-pytest tests/integration/test_chat_route.py -v
-
-# 运行测试并显示覆盖率
-pytest --cov=app --cov-report=html
+cd web
+pnpm dev          # 开发服务器
+pnpm build        # 构建生产版本
+pnpm lint         # 代码检查
 ```
 
-## 📖 文档
+## 📚 API 端点
 
-- [AsyncSqliteSaver 工作原理](./docs/AsyncSqliteSaver工作原理.md) - 详细说明 LangGraph 检查点机制
-- [API 文档](http://localhost:8000/docs) - 启动服务后访问交互式 API 文档
-- [ReDoc](http://localhost:8000/redoc) - 替代的 API 文档格式
+### 认证
+- `POST /api/v1/auth/register` - 注册
+- `POST /api/v1/auth/login` - 登录
+- `GET /api/v1/auth/me` - 当前用户
+
+### 对话
+- `POST /api/v1/chat` - 发送消息
+- `POST /api/v1/chat/stream` - 流式对话
+- `GET /api/v1/conversations` - 会话列表
+
+### 设置
+- `GET /api/v1/users/settings` - 获取设置
+- `PUT /api/v1/users/settings` - 更新设置
+
+完整 API 文档：http://localhost:8000/docs
+
+## 🎨 前端技术栈
+
+- **框架**：React 18 + TypeScript
+- **路由**：React Router
+- **状态管理**：Zustand
+- **UI 组件**：shadcn/ui (基于 Tailwind CSS + Radix UI)
+- **样式**：Tailwind CSS
+- **HTTP 请求**：Axios
+- **构建工具**：Vite
 
 ## 🔧 开发指南
 
-### 添加新的 API 端点
+### 添加新功能
 
-1. 在 `app/models/` 创建数据库模型
-2. 在 `app/schemas/` 创建 Pydantic 模型
-3. 在 `app/api/` 创建路由文件
-4. 在 `app/main.py` 注册路由
-5. 创建数据库迁移：`make db-migrate msg="添加新表"`
-6. 编写测试用例
+1. **后端**：
+   - 创建模型和 Schema
+   - 添加 API 路由
+   - 运行数据库迁移
+   - 编写测试
 
-### 集成新的 LLM 提供商
+2. **前端**：
+   - 创建 React 组件
+   - 添加 API 调用
+   - 使用 shadcn/ui 组件
+   - 更新路由
 
-1. 在 `app/sample_agent.py` 中调整 `get_agent()`（或自定义新的 Agent 图）
-2. 添加/修改对应的环境变量，如 API Key、Base URL、模型名称
-3. 更新 `pyproject.toml` 以添加所需 SDK 依赖
+### 自定义配置
 
-### 自定义 LangGraph 流程
-
-编辑 `app/core/graph.py` 中的 `create_graph()` 函数，定义你的对话流程。
+- 编辑 `.env` 文件配置环境变量
+- 修改 `app/core/config.py` 添加新配置
+- 更新 `web/tailwind.config.ts` 自定义样式
 
 ## 🤝 贡献
 
@@ -358,13 +206,6 @@ pytest --cov=app --cov-report=html
 ## 📄 许可证
 
 MIT License
-
-## 🙏 致谢
-
-- [FastAPI](https://fastapi.tiangolo.com/) - 现代化的 Python Web 框架
-- [LangGraph](https://langchain-ai.github.io/langgraph/) - 对话流程编排框架
-- [SQLAlchemy](https://www.sqlalchemy.org/) - Python SQL 工具包和 ORM
-- [Pydantic](https://docs.pydantic.dev/) - 数据验证库
 
 ---
 
