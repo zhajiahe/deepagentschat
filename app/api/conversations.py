@@ -13,12 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser
-from app.core.exceptions import raise_business_error, raise_internal_error, raise_not_found_error
+from app.core.exceptions import raise_internal_error, raise_not_found_error
 from app.core.lifespan import get_compiled_graph
 from app.models import Conversation, Message
 from app.models.base import BaseResponse, PageResponse
 from app.schemas import (
-    ChatResponse,
     CheckpointResponse,
     ConversationCreate,
     ConversationDetailResponse,
@@ -29,7 +28,6 @@ from app.schemas import (
     MessageResponse,
     SearchRequest,
     SearchResponse,
-    StateResponse,
     UserStatsResponse,
 )
 from app.utils.datetime import utc_now
@@ -57,7 +55,11 @@ async def verify_conversation_ownership(thread_id: str, user_id: uuid.UUID, db: 
 
 
 @router.post("", response_model=BaseResponse[ConversationResponse])
-async def create_conversation(conv: ConversationCreate, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+async def create_conversation(
+    conv: ConversationCreate,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
     """
     创建新会话
 
@@ -97,7 +99,10 @@ async def create_conversation(conv: ConversationCreate, current_user: CurrentUse
 
 @router.get("", response_model=BaseResponse[PageResponse[ConversationResponse]])
 async def list_conversations(
-    current_user: CurrentUser, skip: int = 0, limit: int = 20, db: AsyncSession = Depends(get_db)
+    current_user: CurrentUser,
+    skip: int = 0,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     获取用户的会话列表
@@ -159,7 +164,11 @@ async def list_conversations(
 
 
 @router.get("/{thread_id}", response_model=BaseResponse[ConversationDetailResponse])
-async def get_conversation(thread_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+async def get_conversation(
+    thread_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
     """
     获取单个会话详情
 
@@ -210,7 +219,10 @@ async def get_conversation(thread_id: str, current_user: CurrentUser, db: AsyncS
 
 @router.patch("/{thread_id}", response_model=BaseResponse[dict])
 async def update_conversation(
-    thread_id: str, update: ConversationUpdate, current_user: CurrentUser, db: AsyncSession = Depends(get_db)
+    thread_id: str,
+    update: ConversationUpdate,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     更新会话信息
@@ -244,10 +256,13 @@ async def update_conversation(
 
 @router.delete("/{thread_id}", response_model=BaseResponse[dict])
 async def delete_conversation(
-    thread_id: str, current_user: CurrentUser, hard_delete: bool = False, db: AsyncSession = Depends(get_db)
+    thread_id: str,
+    current_user: CurrentUser,
+    hard_delete: bool = True,
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    删除会话（软删除或硬删除）
+    删除会话（软删除或硬删除），默认硬删除
 
     Args:
         thread_id: 线程ID
@@ -270,8 +285,7 @@ async def delete_conversation(
         except Exception as e:
             logger.warning(f"Failed to delete checkpoints: {e}")
 
-        # 删除消息
-        await db.execute(delete(Message).where(Message.thread_id == thread_id))
+        # 删除会话（消息会通过 cascade 自动删除）
         await db.delete(conversation)
     else:
         # 软删除
@@ -287,7 +301,11 @@ async def delete_conversation(
 
 
 @router.post("/{thread_id}/reset")
-async def reset_conversation(thread_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+async def reset_conversation(
+    thread_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
     """
     重置对话：清除所有检查点和消息记录，但保留会话记录
 
@@ -339,7 +357,11 @@ async def reset_conversation(thread_id: str, current_user: CurrentUser, db: Asyn
 
 @router.get("/{thread_id}/messages", response_model=BaseResponse[list[MessageResponse]])
 async def get_messages(
-    thread_id: str, current_user: CurrentUser, skip: int = 0, limit: int = 50, db: AsyncSession = Depends(get_db)
+    thread_id: str,
+    current_user: CurrentUser,
+    skip: int = 0,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     获取会话消息历史
@@ -384,190 +406,12 @@ async def get_messages(
     )
 
 
-# ============= 消息管理接口 =============
-
-
-@router.post("/{thread_id}/messages/{message_id}/regenerate", response_model=BaseResponse[ChatResponse])
-async def regenerate_message(
-    thread_id: str,
-    message_id: int,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    重新生成指定消息的回复
-
-    Args:
-        thread_id: 线程ID
-        message_id: 消息ID（要重新生成的助手消息）
-        current_user: 当前用户
-        db: 数据库会话
-
-    Returns:
-        ChatResponse: 新的回复
-    """
-    from langchain.messages import HumanMessage
-
-    # 验证会话所有权
-    await verify_conversation_ownership(thread_id, current_user.id, db)
-
-    # 获取要重新生成的消息
-    result = await db.execute(select(Message).where(Message.id == message_id, Message.thread_id == thread_id))
-    message = result.scalar_one_or_none()
-
-    if not message:
-        raise_not_found_error("消息")
-
-    # 此时message肯定不是None
-    assert message is not None
-
-    if message.role != "assistant":
-        raise_business_error("只能重新生成助手消息")
-
-    # 找到该消息之前的用户消息
-    result = await db.execute(
-        select(Message)
-        .where(Message.thread_id == thread_id, Message.create_time < message.create_time, Message.role == "user")
-        .order_by(Message.create_time.desc())
-        .limit(1)
-    )
-    user_message = result.scalar_one_or_none()
-
-    if not user_message:
-        raise_business_error("找不到对应的用户消息")
-
-    # 此时user_message肯定不是None
-    assert user_message is not None
-
-    # 删除该消息及之后的所有消息（先提交删除操作）
-    await db.execute(delete(Message).where(Message.thread_id == thread_id, Message.create_time >= message.create_time))
-    await db.commit()  # 先提交删除操作
-
-    # 删除 LangGraph 检查点（从该消息之后）
-    from app.core.checkpointer import delete_thread_checkpoints
-
-    try:
-        await delete_thread_checkpoints(thread_id)
-        logger.info(f"✅ Deleted LangGraph checkpoints for thread: {thread_id}")
-    except Exception as e:
-        logger.warning(f"Failed to delete checkpoints: {e}")
-
-    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
-
-    try:
-        # 重新执行图
-        start_time = utc_now()
-        compiled_graph = get_compiled_graph()
-        graph_result = await compiled_graph.ainvoke({"messages": [HumanMessage(content=user_message.content)]}, config)
-        duration = (utc_now() - start_time).total_seconds() * 1000
-
-        # 保存新产生的消息
-        result_messages = graph_result["messages"]
-
-        # 从第二条消息开始保存（第一条是用户消息）
-        for msg in result_messages[1:]:
-            msg_type = type(msg).__name__
-            if msg_type == "AIMessage":
-                role = "assistant"
-            elif msg_type == "HumanMessage":
-                role = "user"
-            elif msg_type == "SystemMessage":
-                role = "system"
-            elif msg_type == "ToolMessage":
-                role = "tool"
-            elif msg_type == "FunctionMessage":
-                role = "function"
-            else:
-                role = msg_type.lower().replace("message", "")
-
-            new_message = Message(
-                thread_id=thread_id,
-                role=role,
-                content=str(msg.content) if msg.content else "",
-                meta_data={
-                    "type": msg_type,
-                    **(msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}),
-                },
-            )
-            db.add(new_message)
-
-        # 提取最后一条助手回复
-        assistant_content = result_messages[-1].content
-
-        # 更新会话时间
-        result_conv = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
-        conv_update = result_conv.scalar_one_or_none()
-        if conv_update:
-            conv_update.update_time = utc_now()
-
-        await db.commit()
-
-        return BaseResponse(
-            success=True,
-            code=200,
-            msg="重新生成消息成功",
-            data=ChatResponse(thread_id=thread_id, response=assistant_content, duration_ms=int(duration)),
-        )
-
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Regenerate error: {e}")
-        raise_internal_error(str(e))
-
-
-# ============= 状态管理接口 =============
-
-
-@router.get("/{thread_id}/state", response_model=BaseResponse[StateResponse])
-async def get_state(thread_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    """
-    获取会话的 LangGraph 状态
-
-    Args:
-        thread_id: 线程ID
-
-    Returns:
-        StateResponse: 状态响应
-    """
-    # 验证会话所有权
-    await verify_conversation_ownership(thread_id, current_user.id, db)
-
-    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
-    try:
-        compiled_graph = get_compiled_graph()
-        state = await compiled_graph.aget_state(config)
-
-        # 处理 created_at，可能已经是字符串或 datetime 对象
-        created_at_str = None
-        if state.created_at:
-            if isinstance(state.created_at, str):
-                created_at_str = state.created_at
-            elif hasattr(state.created_at, "isoformat"):
-                created_at_str = state.created_at.isoformat()
-            else:
-                created_at_str = str(state.created_at)
-
-        return BaseResponse(
-            success=True,
-            code=200,
-            msg="获取会话状态成功",
-            data=StateResponse(
-                thread_id=thread_id,
-                values=state.values,
-                next=state.next,
-                metadata=state.metadata,
-                created_at=created_at_str,
-                parent_config=state.parent_config,
-            ),
-        )
-    except Exception as e:
-        logger.error(f"Get state error: {e}")
-        raise_not_found_error(f"会话状态 (错误: {str(e)})")
-
-
 @router.get("/{thread_id}/checkpoints", response_model=BaseResponse[CheckpointResponse])
 async def get_checkpoints(
-    thread_id: str, current_user: CurrentUser, limit: int = 10, db: AsyncSession = Depends(get_db)
+    thread_id: str,
+    current_user: CurrentUser,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     获取会话的所有检查点
@@ -614,7 +458,11 @@ async def get_checkpoints(
 
 
 @router.get("/{thread_id}/export", response_model=BaseResponse[ConversationExportResponse], include_in_schema=False)
-async def export_conversation(thread_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+async def export_conversation(
+    thread_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
     """
     导出会话数据
 
@@ -671,7 +519,11 @@ async def export_conversation(thread_id: str, current_user: CurrentUser, db: Asy
 
 @router.post("/import", include_in_schema=False)
 async def import_conversation(
-    request: ConversationImportRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db)
+    request: ConversationImportRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(
+        get_db,
+    ),
 ):
     """
     导入会话数据
@@ -728,7 +580,11 @@ async def import_conversation(
 
 
 @router.post("/search", response_model=BaseResponse[SearchResponse])
-async def search_conversations(request: SearchRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+async def search_conversations(
+    request: SearchRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
     """
     搜索会话和消息
 
@@ -778,7 +634,10 @@ async def search_conversations(request: SearchRequest, current_user: CurrentUser
 
 
 @router.get("/users/stats", response_model=BaseResponse[UserStatsResponse])
-async def get_user_stats(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+async def get_user_stats(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
     """
     获取用户统计信息
 
@@ -825,4 +684,69 @@ async def get_user_stats(current_user: CurrentUser, db: AsyncSession = Depends(g
                 for conv in recent_conversations
             ],
         ),
+    )
+
+
+@router.delete("/all", summary="删除所有历史会话")
+async def delete_all_conversations(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    hard_delete: bool = True,
+) -> BaseResponse:
+    """删除当前用户的所有历史会话
+
+    Args:
+        current_user: 当前登录用户
+        db: 数据库会话
+        hard_delete: 是否硬删除（彻底删除），默认为硬删除
+
+    Returns:
+        BaseResponse: 删除结果
+    """
+    # 获取用户的所有会话
+    result = await db.execute(
+        select(Conversation).where(Conversation.user_id == current_user.id, Conversation.is_active == 1)
+    )
+    conversations = result.scalars().all()
+
+    if not conversations:
+        return BaseResponse(
+            success=True,
+            code=200,
+            msg="没有需要删除的会话",
+            data={"deleted_count": 0},
+        )
+
+    deleted_count = 0
+
+    if hard_delete:
+        # 硬删除：删除所有会话及其相关数据
+        from app.core.checkpointer import delete_thread_checkpoints
+
+        for conversation in conversations:
+            try:
+                # 删除检查点
+                await delete_thread_checkpoints(conversation.thread_id)
+            except Exception as e:
+                logger.warning(f"Failed to delete checkpoints for {conversation.thread_id}: {e}")
+
+            # 删除会话（消息会通过 cascade 自动删除）
+            await db.delete(conversation)
+            deleted_count += 1
+    else:
+        # 软删除：将所有会话标记为不活跃
+        for conversation in conversations:
+            conversation.is_active = 0
+            deleted_count += 1
+
+    await db.commit()
+
+    return BaseResponse(
+        success=True,
+        code=200,
+        msg=f"成功删除 {deleted_count} 个会话",
+        data={
+            "deleted_count": deleted_count,
+            "hard_delete": hard_delete,
+        },
     )

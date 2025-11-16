@@ -35,14 +35,12 @@ class UserSettings(Base, BaseTableMixin):
         comment="用户ID(UUID)",
     )
     # LLM 相关设置
-    default_model: Mapped[str] = mapped_column(String(100), nullable=True, default=None, comment="默认模型")
-    default_temperature: Mapped[float] = mapped_column(nullable=True, default=None, comment="默认温度")
-    default_max_tokens: Mapped[int] = mapped_column(Integer, nullable=True, default=None, comment="默认最大token数")
-    # 界面设置
-    theme: Mapped[str] = mapped_column(String(20), nullable=True, default="light", comment="主题(light/dark)")
-    language: Mapped[str] = mapped_column(String(10), nullable=True, default="zh-CN", comment="语言")
+    llm_model: Mapped[str] = mapped_column(String(100), nullable=True, default=None, comment="默认模型")
+    max_tokens: Mapped[int] = mapped_column(Integer, nullable=True, default=None, comment="默认最大token数")
     # 其他设置
     settings: Mapped[dict] = mapped_column(JSON, nullable=True, default={}, comment="其他设置(JSON格式)")
+    config: Mapped[dict] = mapped_column(JSON, nullable=True, default={}, comment="langgraph 配置(JSON格式)")
+    context: Mapped[dict] = mapped_column(JSON, nullable=True, default={}, comment="langgraph context(JSON格式)")
 
     def __repr__(self) -> str:
         return f"<UserSettings(id={self.id}, user_id={self.user_id})>"

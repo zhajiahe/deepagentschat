@@ -1,4 +1,4 @@
-.PHONY: help install dev test perf-test lint format clean db-init db-migrate db-upgrade
+.PHONY: help install dev test lint format clean db-init db-migrate db-upgrade
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -19,14 +19,6 @@ dev: ## 启动开发服务器
 test: ## 运行测试
 	@echo "🧪 运行测试..."
 	uv run pytest tests/ -v
-
-perf-test: ## 运行性能测试 (需要先启动服务)
-	@echo "⚡ 运行性能测试..."
-	@if ! curl -s http://localhost:8000/health > /dev/null; then \
-		echo "❌ 服务未运行，请先执行 'make dev' 启动服务"; \
-		exit 1; \
-	fi
-	uv run python tests/e2e/performance/run_performance_tests.py
 
 lint: ## 代码检查
 	@echo "🔍 代码检查..."

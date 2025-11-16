@@ -203,7 +203,7 @@ async def superuser_token(client: TestClient, db: AsyncSession, cached_admin_pas
         _cached_user_id = existing_user.id
 
     # 登录获取token（每次重新生成，因为 user_id 是 UUID）
-    response = client.post("/api/v1/auth/login?username=admin&password=admin123")
+    response = client.post("/api/v1/auth/login", params={"username": "admin", "password": "admin123"})
     if response.status_code != 200:
         raise Exception(f"Login failed: {response.text}")
     token: str = response.json()["data"]["access_token"]

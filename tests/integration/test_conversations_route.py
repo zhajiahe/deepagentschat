@@ -423,6 +423,7 @@ class TestConversationExportImport:
         assert len(imported_data["messages"]) == 2
 
 
+@pytest.mark.skip(reason="regenerate 接口已移除")
 class TestMessageRegenerate:
     """消息重新生成测试类"""
 

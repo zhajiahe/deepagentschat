@@ -4,7 +4,7 @@
 用于 LangGraph 对话系统的消息存储
 """
 
-from sqlalchemy import JSON, String, Text
+from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, BaseTableMixin
@@ -24,7 +24,13 @@ class Message(Base, BaseTableMixin):
 
     __tablename__ = "messages"
 
-    thread_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False, comment="线程ID")
+    thread_id: Mapped[str] = mapped_column(
+        String(100),
+        ForeignKey("conversations.thread_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+        comment="线程ID",
+    )
     role: Mapped[str] = mapped_column(String(20), nullable=False, comment="角色(user/assistant/system)")
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="消息内容")
     meta_data: Mapped[dict] = mapped_column(JSON, nullable=True, default={}, comment="元数据")

@@ -25,7 +25,7 @@ from app.core.exceptions import (
     raise_not_found_error,
 )
 from app.core.lifespan import get_compiled_graph
-from app.models import Conversation, Message
+from app.models import Conversation, Message, UserSettings
 from app.models.base import BaseResponse
 from app.schemas import ChatRequest, ChatResponse
 from app.utils.datetime import utc_now
@@ -58,6 +58,130 @@ def get_role(msg: BaseMessage) -> str:
         return msg_type.lower().replace("message", "")
 
 
+async def get_or_create_conversation(
+    thread_id: str | None,
+    message: str,
+    user_id: uuid.UUID,
+    metadata: dict | None,
+    db: AsyncSession,
+) -> tuple[str, Conversation]:
+    """获取或创建会话
+
+    Args:
+        thread_id: 会话线程ID（可选）
+        message: 消息内容
+        user_id: 用户ID
+        metadata: 元数据
+        db: 数据库会话
+
+    Returns:
+        tuple[str, Conversation]: (thread_id, conversation)
+    """
+    if not thread_id:
+        # 创建新会话
+        thread_id = str(uuid.uuid4())
+        conversation = Conversation(
+            thread_id=thread_id,
+            user_id=user_id,
+            title=message[:50] if len(message) > 50 else message,
+            meta_data=metadata or {},
+        )
+        db.add(conversation)
+        await db.commit()
+        return thread_id, conversation
+    else:
+        # 验证会话是否存在且属于当前用户
+        result = await db.execute(
+            select(Conversation).where(Conversation.thread_id == thread_id, Conversation.user_id == user_id)
+        )
+        conv = result.scalar_one_or_none()
+        if not conv:
+            raise_not_found_error("会话")
+        # 此时conv肯定不是None
+        assert conv is not None
+        return thread_id, conv
+
+
+async def get_user_config(user_id: uuid.UUID, thread_id: str, db: AsyncSession) -> tuple[dict, dict]:
+    """获取用户配置
+
+    Args:
+        user_id: 用户ID
+        thread_id: 会话线程ID
+        db: 数据库会话
+
+    Returns:
+        tuple[dict, dict]: (config, context)
+    """
+    config: dict = {"configurable": {"thread_id": thread_id, "user_id": str(user_id)}}
+    context: dict = {}
+
+    result = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
+    user_settings = result.scalar_one_or_none()
+
+    if user_settings:
+        config["configurable"].update(user_settings.config or {})
+        context = user_settings.context or {}
+
+    return config, context
+
+
+async def save_user_message(thread_id: str, message: str, metadata: dict | None, db: AsyncSession) -> None:
+    """保存用户消息
+
+    Args:
+        thread_id: 会话线程ID
+        message: 消息内容
+        metadata: 元数据
+        db: 数据库会话
+    """
+    user_message = Message(
+        thread_id=thread_id,
+        role="user",
+        content=message,
+        meta_data=metadata or {},
+    )
+    db.add(user_message)
+    await db.commit()
+
+
+async def save_assistant_message(
+    thread_id: str, messages: list[BaseMessage], db: AsyncSession, update_conversation: bool = True
+) -> None:
+    """保存助手消息并更新会话时间
+
+    Args:
+        thread_id: 会话线程ID
+        messages: 消息列表
+        db: 数据库会话
+        update_conversation: 是否更新会话时间
+    """
+    if not messages:
+        return
+
+    last_message = messages[-1]
+    role = get_role(last_message)
+
+    # 只保存助手消息，避免重复保存用户消息
+    if role == "assistant":
+        message = Message(
+            thread_id=thread_id,
+            role=role,
+            content=str(last_message.content) if last_message.content else "",
+            meta_data=last_message.additional_kwargs,
+        )
+        db.add(message)
+
+    # 更新会话时间
+    if update_conversation:
+        result = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
+        conversation = result.scalar_one_or_none()
+        if conversation:
+            conversation.update_time = utc_now()
+
+    await db.commit()
+
+
 @router.post("", response_model=BaseResponse[ChatResponse])
 async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     """
@@ -65,48 +189,23 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
 
     Args:
         request: 对话请求
-        background_tasks: 后台任务
+        current_user: 当前登录用户
         db: 数据库会话
 
     Returns:
         ChatResponse: 对话响应
     """
     # 获取或创建会话
-    thread_id = request.thread_id
-    if not thread_id:
-        thread_id = str(uuid.uuid4())
-        conversation = Conversation(
-            thread_id=thread_id,
-            user_id=current_user.id,  # 使用当前用户ID
-            title=request.message[:50] if len(request.message) > 50 else request.message,
-            meta_data=request.metadata or {},
-        )
-        db.add(conversation)
-        await db.commit()
-    else:
-        # 验证会话是否存在且属于当前用户
-        result = await db.execute(
-            select(Conversation).where(Conversation.thread_id == thread_id, Conversation.user_id == current_user.id)
-        )
-        conv = result.scalar_one_or_none()
-        if not conv:
-            raise_not_found_error("会话")
-        # 此时conv肯定不是None
-        assert conv is not None
-        conversation = conv
+    thread_id, _ = await get_or_create_conversation(
+        request.thread_id, request.message, current_user.id, request.metadata, db
+    )
 
-    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
+    # 获取用户配置
+    config, context = await get_user_config(current_user.id, thread_id, db)
 
     try:
         # 保存用户消息
-        user_message = Message(
-            thread_id=thread_id,
-            role="user",
-            content=request.message,
-            meta_data=request.metadata or {},
-        )
-        db.add(user_message)
-        await db.commit()
+        await save_user_message(thread_id, request.message, request.metadata, db)
 
         # 执行图（异步）- 使用任务包装以便支持取消
         start_time = utc_now()
@@ -114,7 +213,11 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
 
         # 创建任务并注册
         invoke_task = asyncio.create_task(
-            compiled_graph.ainvoke({"messages": [HumanMessage(content=request.message)]}, config)
+            compiled_graph.ainvoke(
+                {"messages": [HumanMessage(content=request.message)]},
+                config=config,
+                context=context,
+            )
         )
         await task_manager.register_task(thread_id, invoke_task)
 
@@ -134,32 +237,12 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
         await task_manager.unregister_task(thread_id)
         duration = (utc_now() - start_time).total_seconds() * 1000
 
-        # 只保存最后一条助手回复（LangGraph 生成的新消息）
+        # 保存助手消息并更新会话时间
         result_messages = graph_result["messages"]
-        if result_messages:
-            last_message = result_messages[-1]
-            # 确定消息类型
-            role = get_role(last_message)
-            # 只保存助手消息，避免重复保存用户消息
-            if role == "assistant":
-                message = Message(
-                    thread_id=thread_id,
-                    role=role,
-                    content=str(last_message.content) if last_message.content else "",
-                    meta_data=last_message.additional_kwargs,
-                )
-                db.add(message)
+        await save_assistant_message(thread_id, result_messages, db, update_conversation=True)
 
         # 提取最后一条助手回复用于响应
         assistant_content = result_messages[-1].content if result_messages else ""
-
-        # 更新会话时间
-        result_conv = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
-        conv_update = result_conv.scalar_one_or_none()
-        if conv_update:
-            conv_update.update_time = utc_now()
-
-        await db.commit()
 
         return BaseResponse(
             success=True,
@@ -188,37 +271,16 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
     Returns:
         StreamingResponse: 流式响应
     """
-    thread_id = request.thread_id or str(uuid.uuid4())
-
-    if not request.thread_id:
-        conversation = Conversation(
-            thread_id=thread_id,
-            user_id=current_user.id,  # 使用当前用户ID
-            title=request.message[:50] if len(request.message) > 50 else request.message,
-            meta_data=request.metadata or {},
-        )
-        db.add(conversation)
-        await db.commit()
-    else:
-        # 验证会话是否属于当前用户
-        result = await db.execute(
-            select(Conversation).where(Conversation.thread_id == thread_id, Conversation.user_id == current_user.id)
-        )
-        conv = result.scalar_one_or_none()
-        if not conv:
-            raise_not_found_error("会话")
+    # 获取或创建会话
+    thread_id, _ = await get_or_create_conversation(
+        request.thread_id, request.message, current_user.id, request.metadata, db
+    )
 
     # 保存用户消息
-    user_message = Message(
-        thread_id=thread_id,
-        role="user",
-        content=request.message,
-        meta_data=request.metadata or {},
-    )
-    db.add(user_message)
-    await db.commit()
+    await save_user_message(thread_id, request.message, request.metadata, db)
 
-    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
+    # 获取用户配置
+    config, context = await get_user_config(current_user.id, thread_id, db)
 
     async def event_generator():
         all_messages = []
@@ -233,7 +295,10 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
             compiled_graph = get_compiled_graph()
             # 使用 astream_events 获取逐token流式输出
             async for event in compiled_graph.astream_events(
-                {"messages": [HumanMessage(content=request.message)]}, config, version="v2"
+                {"messages": [HumanMessage(content=request.message)]},
+                config=config,
+                context=context,
+                version="v2",
             ):
                 # 检查是否被停止
                 if await task_manager.is_stopped(thread_id):
@@ -283,30 +348,10 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                 await task_manager.unregister_task(thread_id)
                 return
 
-            # 只保存最后一条助手回复（LangGraph 生成的新消息）
+            # 保存助手消息并更新会话时间
             if all_messages:
-                last_message = all_messages[-1]
-                role = get_role(last_message)
-                # 只保存助手消息，避免重复保存用户消息
-                if role == "assistant":
-                    async with AsyncSessionLocal() as new_session:
-                        message = Message(
-                            thread_id=thread_id,
-                            role=role,
-                            content=str(last_message.content) if last_message.content else "",
-                            meta_data=last_message.additional_kwargs,
-                        )
-                        new_session.add(message)
-
-                        # 更新会话时间
-                        result = await new_session.execute(
-                            select(Conversation).where(Conversation.thread_id == thread_id)
-                        )
-                        conversation = result.scalar_one_or_none()
-                        if conversation:
-                            conversation.update_time = utc_now()
-
-                        await new_session.commit()
+                async with AsyncSessionLocal() as new_session:
+                    await save_assistant_message(thread_id, all_messages, new_session, update_conversation=True)
 
             yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
 

@@ -65,17 +65,6 @@ class ConversationImportRequest(BaseModel):
     data: dict[str, Any] = Field(..., description="导入数据")
 
 
-class StateResponse(BaseModel):
-    """状态响应"""
-
-    thread_id: str
-    values: dict[str, Any]
-    next: list[str] | None = None
-    metadata: dict[str, Any] | None = None
-    created_at: str | None = None
-    parent_config: dict[str, Any] | None = None
-
-
 class CheckpointResponse(BaseModel):
     """检查点响应"""
 

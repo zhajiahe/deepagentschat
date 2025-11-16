@@ -457,10 +457,11 @@ class TestUserSettingsAPI:
         assert "data" in data
         settings = data["data"]
         assert "user_id" in settings
-        assert "theme" in settings
-        assert "language" in settings
-        assert settings["theme"] == "light"
-        assert settings["language"] == "zh-CN"
+        assert "llm_model" in settings
+        assert "max_tokens" in settings
+        assert "settings" in settings
+        assert "config" in settings
+        assert "context" in settings
 
     def test_get_user_settings_creates_default(self, client: TestClient, auth_headers: dict):
         """测试获取用户设置时自动创建默认设置"""
@@ -470,8 +471,8 @@ class TestUserSettingsAPI:
         data = response.json()
         assert data["success"] is True
         settings = data["data"]
-        assert settings["theme"] == "light"
-        assert settings["language"] == "zh-CN"
+        assert "llm_model" in settings
+        assert "max_tokens" in settings
 
     def test_update_user_settings(self, client: TestClient, auth_headers: dict):
         """测试更新用户设置"""
@@ -479,11 +480,11 @@ class TestUserSettingsAPI:
         response = client.put(
             "/api/v1/users/settings",
             json={
-                "theme": "dark",
-                "language": "en-US",
-                "default_model": "gpt-4",
-                "default_temperature": 0.7,
-                "default_max_tokens": 1000,
+                "llm_model": "gpt-4",
+                "max_tokens": 1000,
+                "settings": {"key": "value"},
+                "config": {"temperature": 0.7},
+                "context": {"user_context": "test"},
             },
             headers=auth_headers,
         )
@@ -491,37 +492,37 @@ class TestUserSettingsAPI:
         data = response.json()
         assert data["success"] is True
         settings = data["data"]
-        assert settings["theme"] == "dark"
-        assert settings["language"] == "en-US"
-        assert settings["default_model"] == "gpt-4"
-        assert settings["default_temperature"] == 0.7
-        assert settings["default_max_tokens"] == 1000
+        assert settings["llm_model"] == "gpt-4"
+        assert settings["max_tokens"] == 1000
+        assert settings["settings"] == {"key": "value"}
+        assert settings["config"] == {"temperature": 0.7}
+        assert settings["context"] == {"user_context": "test"}
 
     def test_update_user_settings_partial(self, client: TestClient, auth_headers: dict):
         """测试部分更新用户设置"""
-        # 只更新主题
+        # 只更新模型
         response = client.put(
             "/api/v1/users/settings",
-            json={"theme": "dark"},
+            json={"llm_model": "gpt-3.5-turbo"},
             headers=auth_headers,
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
         settings = data["data"]
-        assert settings["theme"] == "dark"
+        assert settings["llm_model"] == "gpt-3.5-turbo"
         # 其他设置应该保持不变或使用默认值
-        assert "language" in settings
+        assert "max_tokens" in settings
 
-    def test_update_user_settings_invalid_temperature(self, client: TestClient, auth_headers: dict):
-        """测试更新用户设置时温度值超出范围"""
-        # 温度应该在 0.0-2.0 之间
+    def test_update_user_settings_invalid_max_tokens(self, client: TestClient, auth_headers: dict):
+        """测试更新用户设置时 max_tokens 值无效"""
+        # max_tokens 应该大于 0
         response = client.put(
             "/api/v1/users/settings",
-            json={"default_temperature": 3.0},
+            json={"max_tokens": -1},
             headers=auth_headers,
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_get_user_settings_unauthorized(self, client: TestClient):
         """测试未授权获取用户设置"""
@@ -530,5 +531,5 @@ class TestUserSettingsAPI:
 
     def test_update_user_settings_unauthorized(self, client: TestClient):
         """测试未授权更新用户设置"""
-        response = client.put("/api/v1/users/settings", json={"theme": "dark"})
+        response = client.put("/api/v1/users/settings", json={"llm_model": "gpt-4"})
         assert response.status_code == status.HTTP_403_FORBIDDEN

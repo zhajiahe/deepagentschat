@@ -310,9 +310,11 @@ async def get_user_settings(current_user: CurrentUser, db: DBSession):
         # 如果不存在，创建默认设置
         settings = UserSettings(
             user_id=current_user.id,
-            theme="light",
-            language="zh-CN",
+            llm_model=None,
+            max_tokens=None,
             settings={},
+            config={},
+            context={},
         )
         db.add(settings)
         await db.commit()
@@ -324,12 +326,11 @@ async def get_user_settings(current_user: CurrentUser, db: DBSession):
         msg="获取用户设置成功",
         data=UserSettingsResponse(
             user_id=settings.user_id,
-            default_model=settings.default_model,
-            default_temperature=settings.default_temperature,
-            default_max_tokens=settings.default_max_tokens,
-            theme=settings.theme or "light",
-            language=settings.language or "zh-CN",
+            llm_model=settings.llm_model,
+            max_tokens=settings.max_tokens,
             settings=settings.settings or {},
+            config=settings.config or {},
+            context=settings.context or {},
         ),
     )
 
@@ -372,12 +373,11 @@ async def update_user_settings(settings_data: UserSettingsUpdate, current_user: 
         msg="更新用户设置成功",
         data=UserSettingsResponse(
             user_id=settings.user_id,
-            default_model=settings.default_model,
-            default_temperature=settings.default_temperature,
-            default_max_tokens=settings.default_max_tokens,
-            theme=settings.theme or "light",
-            language=settings.language or "zh-CN",
+            llm_model=settings.llm_model,
+            max_tokens=settings.max_tokens,
             settings=settings.settings or {},
+            config=settings.config or {},
+            context=settings.context or {},
         ),
     )
 
