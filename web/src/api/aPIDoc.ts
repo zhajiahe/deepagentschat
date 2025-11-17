@@ -11,6 +11,21 @@ import type {
   AxiosResponse
 } from 'axios';
 
+export type BaseResponseData = unknown | null;
+
+export type BaseResponseErr = unknown | null;
+
+/**
+ * 所有API响应的基类
+ */
+export interface BaseResponse {
+  success: boolean;
+  code: number;
+  msg: string;
+  data?: BaseResponseData;
+  err?: BaseResponseErr;
+}
+
 export type BaseResponseChatResponseData = ChatResponse | null;
 
 export type BaseResponseChatResponseErr = ChatResponse | null;
@@ -103,18 +118,6 @@ export interface BaseResponseSearchResponse {
   err?: BaseResponseSearchResponseErr;
 }
 
-export type BaseResponseStateResponseData = StateResponse | null;
-
-export type BaseResponseStateResponseErr = StateResponse | null;
-
-export interface BaseResponseStateResponse {
-  success: boolean;
-  code: number;
-  msg: string;
-  data?: BaseResponseStateResponseData;
-  err?: BaseResponseStateResponseErr;
-}
-
 export type BaseResponseTokenData = Token | null;
 
 export type BaseResponseTokenErr = Token | null;
@@ -189,6 +192,18 @@ export interface BaseResponseListMessageResponse {
   msg: string;
   data?: BaseResponseListMessageResponseData;
   err?: BaseResponseListMessageResponseErr;
+}
+
+export type BaseResponseListModelInfoData = ModelInfo[] | null;
+
+export type BaseResponseListModelInfoErr = ModelInfo[] | null;
+
+export interface BaseResponseListModelInfo {
+  success: boolean;
+  code: number;
+  msg: string;
+  data?: BaseResponseListModelInfoData;
+  err?: BaseResponseListModelInfoErr;
 }
 
 /**
@@ -339,6 +354,20 @@ export interface MessageResponse {
   created_at: string;
 }
 
+/**
+ * 模型信息
+ */
+export interface ModelInfo {
+  /** 模型唯一标识符 */
+  id: string;
+  /** 对象类型 */
+  object?: string;
+  /** 创建时间戳 */
+  created: number;
+  /** 模型所有者/提供商 */
+  owned_by: string;
+}
+
 export interface PageResponseConversationResponse {
   /** 当前页码 */
   page_num?: number;
@@ -405,32 +434,6 @@ export type SearchResponseResultsItem = { [key: string]: unknown };
 export interface SearchResponse {
   query: string;
   results: SearchResponseResultsItem[];
-}
-
-export type StateResponseValues = { [key: string]: unknown };
-
-export type StateResponseNext = string[] | null;
-
-export type StateResponseMetadataAnyOf = { [key: string]: unknown };
-
-export type StateResponseMetadata = StateResponseMetadataAnyOf | null;
-
-export type StateResponseCreatedAt = string | null;
-
-export type StateResponseParentConfigAnyOf = { [key: string]: unknown };
-
-export type StateResponseParentConfig = StateResponseParentConfigAnyOf | null;
-
-/**
- * 状态响应
- */
-export interface StateResponse {
-  thread_id: string;
-  values: StateResponseValues;
-  next?: StateResponseNext;
-  metadata?: StateResponseMetadata;
-  created_at?: StateResponseCreatedAt;
-  parent_config?: StateResponseParentConfig;
 }
 
 /**
@@ -525,22 +528,27 @@ export interface UserResponse {
 /**
  * 默认模型
  */
-export type UserSettingsResponseDefaultModel = string | null;
-
-/**
- * 默认温度
- */
-export type UserSettingsResponseDefaultTemperature = number | null;
+export type UserSettingsResponseLlmModel = string | null;
 
 /**
  * 默认最大token数
  */
-export type UserSettingsResponseDefaultMaxTokens = number | null;
+export type UserSettingsResponseMaxTokens = number | null;
 
 /**
- * 其他设置
+ * 其他设置(JSON格式)
  */
 export type UserSettingsResponseSettings = { [key: string]: unknown };
+
+/**
+ * langgraph 配置(JSON格式)
+ */
+export type UserSettingsResponseConfig = { [key: string]: unknown };
+
+/**
+ * langgraph context(JSON格式)
+ */
+export type UserSettingsResponseContext = { [key: string]: unknown };
 
 /**
  * 用户设置响应
@@ -549,67 +557,62 @@ export interface UserSettingsResponse {
   /** 用户ID(UUID) */
   user_id: string;
   /** 默认模型 */
-  default_model?: UserSettingsResponseDefaultModel;
-  /** 默认温度 */
-  default_temperature?: UserSettingsResponseDefaultTemperature;
+  llm_model?: UserSettingsResponseLlmModel;
   /** 默认最大token数 */
-  default_max_tokens?: UserSettingsResponseDefaultMaxTokens;
-  /** 主题(light/dark) */
-  theme?: string;
-  /** 语言 */
-  language?: string;
-  /** 其他设置 */
+  max_tokens?: UserSettingsResponseMaxTokens;
+  /** 其他设置(JSON格式) */
   settings?: UserSettingsResponseSettings;
+  /** langgraph 配置(JSON格式) */
+  config?: UserSettingsResponseConfig;
+  /** langgraph context(JSON格式) */
+  context?: UserSettingsResponseContext;
 }
 
 /**
  * 默认模型
  */
-export type UserSettingsUpdateDefaultModel = string | null;
-
-/**
- * 默认温度
- */
-export type UserSettingsUpdateDefaultTemperature = number | null;
+export type UserSettingsUpdateLlmModel = string | null;
 
 /**
  * 默认最大token数
  */
-export type UserSettingsUpdateDefaultMaxTokens = number | null;
-
-/**
- * 主题(light/dark)
- */
-export type UserSettingsUpdateTheme = string | null;
-
-/**
- * 语言
- */
-export type UserSettingsUpdateLanguage = string | null;
+export type UserSettingsUpdateMaxTokens = number | null;
 
 export type UserSettingsUpdateSettingsAnyOf = { [key: string]: unknown };
 
 /**
- * 其他设置
+ * 其他设置(JSON格式)
  */
 export type UserSettingsUpdateSettings = UserSettingsUpdateSettingsAnyOf | null;
+
+export type UserSettingsUpdateConfigAnyOf = { [key: string]: unknown };
+
+/**
+ * langgraph 配置(JSON格式)
+ */
+export type UserSettingsUpdateConfig = UserSettingsUpdateConfigAnyOf | null;
+
+export type UserSettingsUpdateContextAnyOf = { [key: string]: unknown };
+
+/**
+ * langgraph context(JSON格式)
+ */
+export type UserSettingsUpdateContext = UserSettingsUpdateContextAnyOf | null;
 
 /**
  * 用户设置更新请求
  */
 export interface UserSettingsUpdate {
   /** 默认模型 */
-  default_model?: UserSettingsUpdateDefaultModel;
-  /** 默认温度 */
-  default_temperature?: UserSettingsUpdateDefaultTemperature;
+  llm_model?: UserSettingsUpdateLlmModel;
   /** 默认最大token数 */
-  default_max_tokens?: UserSettingsUpdateDefaultMaxTokens;
-  /** 主题(light/dark) */
-  theme?: UserSettingsUpdateTheme;
-  /** 语言 */
-  language?: UserSettingsUpdateLanguage;
-  /** 其他设置 */
+  max_tokens?: UserSettingsUpdateMaxTokens;
+  /** 其他设置(JSON格式) */
   settings?: UserSettingsUpdateSettings;
+  /** langgraph 配置(JSON格式) */
+  config?: UserSettingsUpdateConfig;
+  /** langgraph context(JSON格式) */
+  context?: UserSettingsUpdateContext;
 }
 
 export type UserStatsResponseRecentConversationsItem = { [key: string]: unknown };
@@ -701,6 +704,10 @@ limit?: number;
 
 export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetParams = {
 limit?: number;
+};
+
+export type DeleteAllConversationsApiV1ConversationsAllDeleteParams = {
+hard_delete?: boolean;
 };
 
 /**
@@ -962,11 +969,32 @@ export const deleteUserApiV1UsersUserIdDelete = <TData = AxiosResponse<BaseRespo
   }
 
 /**
+ * 获取可用的 LLM 模型列表
+
+从用户配置的 API 端点动态获取模型列表
+
+Args:
+    _current_user: 当前登录用户
+    db: 数据库会话
+
+Returns:
+    list[ModelInfo]: 可用模型列表
+ * @summary List Available Models
+ */
+export const listAvailableModelsApiV1UsersModelsAvailableGet = <TData = AxiosResponse<BaseResponseListModelInfo>>(
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/users/models/available`,options
+    );
+  }
+
+/**
  * 异步对话接口 (非流式)
 
 Args:
     request: 对话请求
-    background_tasks: 后台任务
+    current_user: 当前登录用户
     db: 数据库会话
 
 Returns:
@@ -1109,7 +1137,7 @@ export const updateConversationApiV1ConversationsThreadIdPatch = <TData = AxiosR
   }
 
 /**
- * 删除会话（软删除或硬删除）
+ * 删除会话（软删除或硬删除），默认硬删除
 
 Args:
     thread_id: 线程ID
@@ -1178,46 +1206,6 @@ export const getMessagesApiV1ConversationsThreadIdMessagesGet = <TData = AxiosRe
   }
 
 /**
- * 重新生成指定消息的回复
-
-Args:
-    thread_id: 线程ID
-    message_id: 消息ID（要重新生成的助手消息）
-    current_user: 当前用户
-    db: 数据库会话
-
-Returns:
-    ChatResponse: 新的回复
- * @summary Regenerate Message
- */
-export const regenerateMessageApiV1ConversationsThreadIdMessagesMessageIdRegeneratePost = <TData = AxiosResponse<BaseResponseChatResponse>>(
-    threadId: string,
-    messageId: number, options?: AxiosRequestConfig
- ): Promise<TData> => {
-    return axios.post(
-      `/api/v1/conversations/${threadId}/messages/${messageId}/regenerate`,undefined,options
-    );
-  }
-
-/**
- * 获取会话的 LangGraph 状态
-
-Args:
-    thread_id: 线程ID
-
-Returns:
-    StateResponse: 状态响应
- * @summary Get State
- */
-export const getStateApiV1ConversationsThreadIdStateGet = <TData = AxiosResponse<BaseResponseStateResponse>>(
-    threadId: string, options?: AxiosRequestConfig
- ): Promise<TData> => {
-    return axios.get(
-      `/api/v1/conversations/${threadId}/state`,options
-    );
-  }
-
-/**
  * 获取会话的所有检查点
 
 Args:
@@ -1279,6 +1267,28 @@ export const getUserStatsApiV1ConversationsUsersStatsGet = <TData = AxiosRespons
   }
 
 /**
+ * 删除当前用户的所有历史会话
+
+Args:
+    current_user: 当前登录用户
+    db: 数据库会话
+    hard_delete: 是否硬删除（彻底删除），默认为硬删除
+
+Returns:
+    BaseResponse: 删除结果
+ * @summary 删除所有历史会话
+ */
+export const deleteAllConversationsApiV1ConversationsAllDelete = <TData = AxiosResponse<BaseResponse>>(
+    params?: DeleteAllConversationsApiV1ConversationsAllDeleteParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.delete(
+      `/api/v1/conversations/all`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
+
+/**
  * 处理 SPA 路由，所有路径都返回 index.html
  * @summary Serve Spa
  */
@@ -1304,6 +1314,7 @@ export type UpdateUserSettingsApiV1UsersSettingsPutResult = AxiosResponse<BaseRe
 export type GetUserApiV1UsersUserIdGetResult = AxiosResponse<BaseResponseUserResponse>
 export type UpdateUserApiV1UsersUserIdPutResult = AxiosResponse<BaseResponseUserResponse>
 export type DeleteUserApiV1UsersUserIdDeleteResult = AxiosResponse<BaseResponseNoneType>
+export type ListAvailableModelsApiV1UsersModelsAvailableGetResult = AxiosResponse<BaseResponseListModelInfo>
 export type ChatApiV1ChatPostResult = AxiosResponse<BaseResponseChatResponse>
 export type ChatStreamApiV1ChatStreamPostResult = AxiosResponse<unknown>
 export type StopChatApiV1ChatStopPostResult = AxiosResponse<unknown>
@@ -1314,9 +1325,8 @@ export type UpdateConversationApiV1ConversationsThreadIdPatchResult = AxiosRespo
 export type DeleteConversationApiV1ConversationsThreadIdDeleteResult = AxiosResponse<BaseResponseDict>
 export type ResetConversationApiV1ConversationsThreadIdResetPostResult = AxiosResponse<unknown>
 export type GetMessagesApiV1ConversationsThreadIdMessagesGetResult = AxiosResponse<BaseResponseListMessageResponse>
-export type RegenerateMessageApiV1ConversationsThreadIdMessagesMessageIdRegeneratePostResult = AxiosResponse<BaseResponseChatResponse>
-export type GetStateApiV1ConversationsThreadIdStateGetResult = AxiosResponse<BaseResponseStateResponse>
 export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetResult = AxiosResponse<BaseResponseCheckpointResponse>
 export type SearchConversationsApiV1ConversationsSearchPostResult = AxiosResponse<BaseResponseSearchResponse>
 export type GetUserStatsApiV1ConversationsUsersStatsGetResult = AxiosResponse<BaseResponseUserStatsResponse>
+export type DeleteAllConversationsApiV1ConversationsAllDeleteResult = AxiosResponse<BaseResponse>
 export type ServeSpaWebFullPathGetResult = AxiosResponse<unknown>

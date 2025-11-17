@@ -21,6 +21,8 @@ export const Settings = () => {
   const [settings, setSettings] = useState<UserSettingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState({
@@ -44,7 +46,23 @@ export const Settings = () => {
       return;
     }
     loadSettings();
+    loadAvailableModels();
   }, [isAuthenticated, navigate]);
+
+  const loadAvailableModels = async () => {
+    try {
+      setLoadingModels(true);
+      const response = await request.get<any>('/users/models/available');
+      if (response.data.success && response.data.data) {
+        setAvailableModels(response.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load available models:', err);
+      // 静默失败，不影响其他设置的加载
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -206,15 +224,38 @@ export const Settings = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="default_model">默认模型</Label>
-              <Input
-                id="default_model"
-                type="text"
-                value={formData.default_model}
-                onChange={(e) =>
-                  setFormData({ ...formData, default_model: e.target.value })
-                }
-                placeholder="例如: Qwen/Qwen3-8B"
-              />
+              {loadingModels ? (
+                <div className="text-sm text-muted-foreground">加载模型列表...</div>
+              ) : availableModels.length > 0 ? (
+                <Select
+                  value={formData.default_model}
+                  onValueChange={(value) => setFormData({ ...formData, default_model: value })}
+                >
+                  <SelectTrigger id="default_model">
+                    <SelectValue placeholder="选择模型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableModels.map((modelId) => (
+                      <SelectItem key={modelId} value={modelId}>
+                        {modelId}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="default_model"
+                  type="text"
+                  value={formData.default_model}
+                  onChange={(e) =>
+                    setFormData({ ...formData, default_model: e.target.value })
+                  }
+                  placeholder="例如: Qwen/Qwen3-8B"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                选择您偏好的 AI 模型，将应用于所有新对话
+              </p>
             </div>
 
             <div className="space-y-2">
