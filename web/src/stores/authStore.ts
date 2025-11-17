@@ -10,6 +10,7 @@ interface AuthState {
   // Actions
   setAuth: (user: UserResponse, token: string, refreshToken: string) => void;
   clearAuth: () => void;
+  logout: () => void;
   updateUser: (user: UserResponse) => void;
   initAuth: () => void;
 }
@@ -29,6 +30,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearAuth: () => {
     storage.clearAuth();
     set({ user: null, token: null, isAuthenticated: false });
+  },
+
+  logout: () => {
+    storage.clearAuth();
+    set({ user: null, token: null, isAuthenticated: false });
+    // 跳转到登录页
+    window.location.href = '/web/login';
   },
 
   updateUser: (user) => {

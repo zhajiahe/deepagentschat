@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import request from '@/utils/request';
 import { UserSettingsResponse, UserSettingsUpdate, PasswordChange } from '@/api/aPIDoc';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon, SaveIcon, Trash2Icon } from 'lucide-react';
 import { UserStats } from '@/components/UserStats';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export const Settings = () => {
   const navigate = useNavigate();
@@ -23,14 +34,13 @@ export const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [deletingConversations, setDeletingConversations] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState({
-    default_model: '',
-    default_temperature: 0.7,
-    default_max_tokens: 2000,
-    theme: 'light',
-    language: 'zh-CN',
+    llm_model: '',
+    max_tokens: 2000,
   });
 
   // 密码修改
@@ -45,11 +55,22 @@ export const Settings = () => {
       setLoadingModels(true);
       const response = await request.get<any>('/users/models/available');
       if (response.data.success && response.data.data) {
-        setAvailableModels(response.data.data);
+        // 处理返回的模型数据，可能是 ModelInfo[] 或 string[]
+        const models = response.data.data;
+        if (Array.isArray(models)) {
+          // 如果是 ModelInfo 对象数组，提取 id 字段
+          if (models.length > 0 && typeof models[0] === 'object' && 'id' in models[0]) {
+            setAvailableModels(models.map((m: any) => m.id));
+          } else {
+            // 如果是字符串数组，直接使用
+            setAvailableModels(models);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load available models:', err);
       // 静默失败，不影响其他设置的加载
+      setAvailableModels([]);
     } finally {
       setLoadingModels(false);
     }
@@ -58,24 +79,29 @@ export const Settings = () => {
   const loadSettings = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const response = await request.get<any>('/users/settings');
       if (response.data.success && response.data.data) {
         const data = response.data.data;
         setSettings(data);
         setFormData({
-          default_model: data.default_model || '',
-          default_temperature: data.default_temperature || 0.7,
-          default_max_tokens: data.default_max_tokens || 2000,
-          theme: data.theme || 'light',
-          language: data.language || 'zh-CN',
+          llm_model: data.llm_model || '',
+          max_tokens: data.max_tokens || 2000,
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load settings:', err);
+      const errorMsg = err.response?.data?.msg || err.message || '加载设置失败，请稍后重试';
+      setLoadError(errorMsg);
       toast({
         title: '加载失败',
-        description: '加载设置失败，请稍后重试',
+        description: errorMsg,
         variant: 'destructive',
+      });
+      // 即使加载失败，也设置默认值以防止白屏
+      setFormData({
+        llm_model: '',
+        max_tokens: 2000,
       });
     } finally {
       setLoading(false);
@@ -96,14 +122,10 @@ export const Settings = () => {
     try {
       setSaving(true);
 
-      const currentSettings = settings?.settings || {};
       const updateData: UserSettingsUpdate = {
-        default_model: formData.default_model || null,
-        default_temperature: formData.default_temperature,
-        default_max_tokens: formData.default_max_tokens,
-        theme: formData.theme || null,
-        language: formData.language || null,
-        settings: currentSettings,
+        llm_model: formData.llm_model || null,
+        max_tokens: formData.max_tokens,
+        settings: settings?.settings || {},
       };
 
       await request.put('/users/settings', updateData);
@@ -168,6 +190,30 @@ export const Settings = () => {
     }
   };
 
+  const handleClearAllConversations = async () => {
+    try {
+      setDeletingConversations(true);
+      const response = await request.delete<any>('/conversations/all', {
+        params: { hard_delete: true },
+      });
+
+      if (response.data.success) {
+        toast({
+          title: '清除成功',
+          description: response.data.msg || '所有对话已清除',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: '清除失败',
+        description: err.response?.data?.msg || '清除对话失败',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingConversations(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -189,6 +235,29 @@ export const Settings = () => {
           </Button>
           <h1 className="text-2xl font-bold">设置</h1>
         </div>
+
+        {/* 错误提示 */}
+        {loadError && (
+          <Card className="border-destructive">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-destructive">
+                <span className="font-semibold">加载错误:</span>
+                <span>{loadError}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  loadSettings();
+                  loadAvailableModels();
+                }}
+                className="mt-4"
+              >
+                重试
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* 用户统计 */}
         <UserStats />
@@ -224,15 +293,15 @@ export const Settings = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="default_model">默认模型</Label>
+              <Label htmlFor="llm_model">LLM 模型</Label>
               {loadingModels ? (
                 <div className="text-sm text-muted-foreground">加载模型列表...</div>
               ) : availableModels.length > 0 ? (
                 <Select
-                  value={formData.default_model}
-                  onValueChange={(value) => setFormData({ ...formData, default_model: value })}
+                  value={formData.llm_model}
+                  onValueChange={(value) => setFormData({ ...formData, llm_model: value })}
                 >
-                  <SelectTrigger id="default_model">
+                  <SelectTrigger id="llm_model">
                     <SelectValue placeholder="选择模型" />
                   </SelectTrigger>
                   <SelectContent>
@@ -245,44 +314,18 @@ export const Settings = () => {
                 </Select>
               ) : (
                 <Input
-                  id="default_model"
+                  id="llm_model"
                   type="text"
-                  value={formData.default_model}
+                  value={formData.llm_model}
                   onChange={(e) =>
-                    setFormData({ ...formData, default_model: e.target.value })
+                    setFormData({ ...formData, llm_model: e.target.value })
                   }
-                  placeholder="例如: Qwen/Qwen3-8B"
+                  placeholder="例如: Qwen/Qwen2.5-7B-Instruct"
                 />
               )}
               <p className="text-xs text-muted-foreground">
-                选择您偏好的 AI 模型，将应用于所有新对话
+                选择您偏好的 LLM 模型，将应用于所有新对话
               </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="temperature">
-                温度 (Temperature): {formData.default_temperature}
-              </Label>
-              <input
-                id="temperature"
-                type="range"
-                min="0"
-                max="2"
-                step="0.1"
-                value={formData.default_temperature}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    default_temperature: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>精确 (0)</span>
-                <span>平衡 (1)</span>
-                <span>创造 (2)</span>
-              </div>
             </div>
 
             <div className="space-y-2">
@@ -290,48 +333,19 @@ export const Settings = () => {
               <Input
                 id="max_tokens"
                 type="number"
-                value={formData.default_max_tokens}
+                value={formData.max_tokens}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    default_max_tokens: parseInt(e.target.value),
+                    max_tokens: parseInt(e.target.value) || 2000,
                   })
                 }
                 min="100"
-                max="8000"
+                max="32768"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="theme">主题</Label>
-              <Select
-                value={formData.theme}
-                onValueChange={(value) => setFormData({ ...formData, theme: value })}
-              >
-                <SelectTrigger id="theme">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">亮色</SelectItem>
-                  <SelectItem value="dark">暗色</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="language">语言</Label>
-              <Select
-                value={formData.language}
-                onValueChange={(value) => setFormData({ ...formData, language: value })}
-              >
-                <SelectTrigger id="language">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="zh-CN">简体中文</SelectItem>
-                  <SelectItem value="en-US">English</SelectItem>
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">
+                控制模型生成的最大长度（1-32768）
+              </p>
             </div>
 
             <Button
@@ -398,6 +412,54 @@ export const Settings = () => {
                 {saving ? '修改中...' : '修改密码'}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* 清除所有对话 */}
+        <Card className="border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">危险操作</CardTitle>
+            <CardDescription>以下操作不可恢复，请谨慎操作</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-2">清除所有对话</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  这将永久删除您的所有对话记录和消息，此操作不可恢复。
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      disabled={deletingConversations}
+                    >
+                      <Trash2Icon size={16} className="mr-2" />
+                      {deletingConversations ? '清除中...' : '清除所有对话'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确认清除所有对话？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        此操作将永久删除您的所有对话记录和消息，包括所有历史会话。
+                        <br />
+                        <strong className="text-destructive">此操作不可恢复！</strong>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleClearAllConversations}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        确认清除
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

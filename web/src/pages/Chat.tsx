@@ -23,7 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export const Chat = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user, clearAuth } = useAuthStore();
+  const { isAuthenticated, user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const { messages, isSending, sendMessageStream, stopStreaming } = useChat();
   const { conversations, selectConversation, currentConversation, resetConversation } = useConversations();
@@ -38,8 +38,7 @@ export const Chat = () => {
   }, [isAuthenticated, navigate]);
 
   const handleLogout = () => {
-    clearAuth();
-    navigate('/login');
+    logout();
   };
 
   const handleSelectConversation = async (threadId: string) => {
