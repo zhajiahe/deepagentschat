@@ -28,10 +28,26 @@ export const Chat = () => {
   const { theme, toggleTheme } = useThemeStore();
   const { loadSettings } = useUserSettingsStore();
   const { messages, isSending, sendMessageStream, stopStreaming } = useChat();
-  const { conversations, selectConversation, currentConversation, resetConversation } = useConversations();
+  const { conversations, selectConversation, currentConversation, resetConversation, loadConversations } = useConversations();
   const { toast } = useToast();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+
+  // 处理新会话创建
+  const handleNewConversation = async (threadId: string) => {
+    // 重新加载会话列表以获取新创建的会话
+    await loadConversations();
+    // 选择新创建的会话
+    const conversation = conversations.find((c) => c.thread_id === threadId);
+    if (conversation) {
+      await selectConversation(conversation);
+    }
+  };
+
+  // 包装 sendMessageStream 以处理新会话
+  const handleSendMessage = async (content: string) => {
+    await sendMessageStream(content, handleNewConversation);
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -143,7 +159,7 @@ export const Chat = () => {
 
         {/* Input */}
         <ChatInput
-          onSend={sendMessageStream}
+          onSend={handleSendMessage}
           onStop={stopStreaming}
           onReset={handleResetCurrentConversation}
           disabled={isSending}

@@ -250,8 +250,11 @@ class TestConversationMessages:
         assert response.status_code == status.HTTP_200_OK
         response_data = response.json()
         assert response_data["success"] is True
-        messages = response_data["data"]
-        assert len(messages) == 5
+        page_data = response_data["data"]
+        assert "items" in page_data
+        assert "total" in page_data
+        assert page_data["total"] == 5
+        assert len(page_data["items"]) == 5
 
     @pytest.mark.asyncio
     async def test_get_messages_pagination(self, client: TestClient, auth_headers: dict, db, current_user_id):
@@ -279,20 +282,30 @@ class TestConversationMessages:
         await db.commit()
 
         # 获取第一页
-        response = client.get(f"/api/v1/conversations/{thread_id}/messages?skip=0&limit=5", headers=auth_headers)
+        response = client.get(
+            f"/api/v1/conversations/{thread_id}/messages?page_num=1&page_size=5", headers=auth_headers
+        )
         assert response.status_code == status.HTTP_200_OK
         response_data = response.json()
         assert response_data["success"] is True
-        messages = response_data["data"]
-        assert len(messages) == 5
+        page_data = response_data["data"]
+        assert page_data["page_num"] == 1
+        assert page_data["page_size"] == 5
+        assert page_data["total"] == 10
+        assert len(page_data["items"]) == 5
 
         # 获取第二页
-        response = client.get(f"/api/v1/conversations/{thread_id}/messages?skip=5&limit=5", headers=auth_headers)
+        response = client.get(
+            f"/api/v1/conversations/{thread_id}/messages?page_num=2&page_size=5", headers=auth_headers
+        )
         assert response.status_code == status.HTTP_200_OK
         response_data = response.json()
         assert response_data["success"] is True
-        messages = response_data["data"]
-        assert len(messages) == 5
+        page_data = response_data["data"]
+        assert page_data["page_num"] == 2
+        assert page_data["page_size"] == 5
+        assert page_data["total"] == 10
+        assert len(page_data["items"]) == 5
 
 
 class TestConversationState:

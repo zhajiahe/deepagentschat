@@ -94,6 +94,18 @@ export interface BaseResponsePageResponseConversationResponse {
   err?: BaseResponsePageResponseConversationResponseErr;
 }
 
+export type BaseResponsePageResponseMessageResponseData = PageResponseMessageResponse | null;
+
+export type BaseResponsePageResponseMessageResponseErr = PageResponseMessageResponse | null;
+
+export interface BaseResponsePageResponseMessageResponse {
+  success: boolean;
+  code: number;
+  msg: string;
+  data?: BaseResponsePageResponseMessageResponseData;
+  err?: BaseResponsePageResponseMessageResponseErr;
+}
+
 export type BaseResponsePageResponseUserResponseData = PageResponseUserResponse | null;
 
 export type BaseResponsePageResponseUserResponseErr = PageResponseUserResponse | null;
@@ -182,28 +194,20 @@ export interface BaseResponseDict {
   err?: BaseResponseDictErr;
 }
 
-export type BaseResponseListMessageResponseData = MessageResponse[] | null;
+export type BaseResponseListDictStrAnyDataAnyOfItem = { [key: string]: unknown };
 
-export type BaseResponseListMessageResponseErr = MessageResponse[] | null;
+export type BaseResponseListDictStrAnyData = BaseResponseListDictStrAnyDataAnyOfItem[] | null;
 
-export interface BaseResponseListMessageResponse {
+export type BaseResponseListDictStrAnyErrAnyOfItem = { [key: string]: unknown };
+
+export type BaseResponseListDictStrAnyErr = BaseResponseListDictStrAnyErrAnyOfItem[] | null;
+
+export interface BaseResponseListDictStrAny {
   success: boolean;
   code: number;
   msg: string;
-  data?: BaseResponseListMessageResponseData;
-  err?: BaseResponseListMessageResponseErr;
-}
-
-export type BaseResponseListModelInfoData = ModelInfo[] | null;
-
-export type BaseResponseListModelInfoErr = ModelInfo[] | null;
-
-export interface BaseResponseListModelInfo {
-  success: boolean;
-  code: number;
-  msg: string;
-  data?: BaseResponseListModelInfoData;
-  err?: BaseResponseListModelInfoErr;
+  data?: BaseResponseListDictStrAnyData;
+  err?: BaseResponseListDictStrAnyErr;
 }
 
 /**
@@ -354,20 +358,6 @@ export interface MessageResponse {
   created_at: string;
 }
 
-/**
- * 模型信息
- */
-export interface ModelInfo {
-  /** 模型唯一标识符 */
-  id: string;
-  /** 对象类型 */
-  object?: string;
-  /** 创建时间戳 */
-  created: number;
-  /** 模型所有者/提供商 */
-  owned_by: string;
-}
-
 export interface PageResponseConversationResponse {
   /** 当前页码 */
   page_num?: number;
@@ -377,6 +367,17 @@ export interface PageResponseConversationResponse {
   total?: number;
   /** 分页数据 */
   items?: ConversationResponse[];
+}
+
+export interface PageResponseMessageResponse {
+  /** 当前页码 */
+  page_num?: number;
+  /** 每页数量 */
+  page_size?: number;
+  /** 总记录数 */
+  total?: number;
+  /** 分页数据 */
+  items?: MessageResponse[];
 }
 
 export interface PageResponseUserResponse {
@@ -689,8 +690,18 @@ is_superuser?: boolean | null;
 };
 
 export type ListConversationsApiV1ConversationsGetParams = {
-skip?: number;
-limit?: number;
+/**
+ * @minimum 1
+ */
+page_num?: number;
+/**
+ * @minimum 1
+ */
+page_size?: number;
+};
+
+export type DeleteAllConversationsApiV1ConversationsAllDeleteParams = {
+hard_delete?: boolean;
 };
 
 export type DeleteConversationApiV1ConversationsThreadIdDeleteParams = {
@@ -698,16 +709,18 @@ hard_delete?: boolean;
 };
 
 export type GetMessagesApiV1ConversationsThreadIdMessagesGetParams = {
-skip?: number;
-limit?: number;
+/**
+ * @minimum 1
+ */
+page_num?: number;
+/**
+ * @minimum 1
+ */
+page_size?: number;
 };
 
 export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetParams = {
 limit?: number;
-};
-
-export type DeleteAllConversationsApiV1ConversationsAllDeleteParams = {
-hard_delete?: boolean;
 };
 
 /**
@@ -981,7 +994,7 @@ Returns:
     list[ModelInfo]: 可用模型列表
  * @summary List Available Models
  */
-export const listAvailableModelsApiV1UsersModelsAvailableGet = <TData = AxiosResponse<BaseResponseListModelInfo>>(
+export const listAvailableModelsApiV1UsersModelsAvailableGet = <TData = AxiosResponse<BaseResponseListDictStrAny>>(
      options?: AxiosRequestConfig
  ): Promise<TData> => {
     return axios.get(
@@ -1076,13 +1089,12 @@ export const createConversationApiV1ConversationsPost = <TData = AxiosResponse<B
  * 获取用户的会话列表
 
 Args:
-    user_id: 用户ID
-    skip: 跳过数量
-    limit: 返回数量
+    current_user: 当前用户
+    page_query: 分页参数（page_num, page_size）
     db: 数据库会话
 
 Returns:
-    list[ConversationResponse]: 会话列表
+    PageResponse[ConversationResponse]: 分页的会话列表
  * @summary List Conversations
  */
 export const listConversationsApiV1ConversationsGet = <TData = AxiosResponse<BaseResponsePageResponseConversationResponse>>(
@@ -1090,6 +1102,28 @@ export const listConversationsApiV1ConversationsGet = <TData = AxiosResponse<Bas
  ): Promise<TData> => {
     return axios.get(
       `/api/v1/conversations`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
+
+/**
+ * 删除当前用户的所有历史会话
+
+Args:
+    current_user: 当前登录用户
+    db: 数据库会话
+    hard_delete: 是否硬删除（彻底删除），默认为硬删除
+
+Returns:
+    BaseResponse: 删除结果
+ * @summary 删除所有历史会话
+ */
+export const deleteAllConversationsApiV1ConversationsAllDelete = <TData = AxiosResponse<BaseResponse>>(
+    params?: DeleteAllConversationsApiV1ConversationsAllDeleteParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.delete(
+      `/api/v1/conversations/all`,{
     ...options,
         params: {...params, ...options?.params},}
     );
@@ -1186,15 +1220,15 @@ export const resetConversationApiV1ConversationsThreadIdResetPost = <TData = Axi
 
 Args:
     thread_id: 线程ID
-    skip: 跳过数量
-    limit: 返回数量
+    current_user: 当前用户
+    page_query: 分页参数（page_num, page_size）
     db: 数据库会话
 
 Returns:
-    list[MessageResponse]: 消息列表
+    PageResponse[MessageResponse]: 分页的消息列表
  * @summary Get Messages
  */
-export const getMessagesApiV1ConversationsThreadIdMessagesGet = <TData = AxiosResponse<BaseResponseListMessageResponse>>(
+export const getMessagesApiV1ConversationsThreadIdMessagesGet = <TData = AxiosResponse<BaseResponsePageResponseMessageResponse>>(
     threadId: string,
     params?: GetMessagesApiV1ConversationsThreadIdMessagesGetParams, options?: AxiosRequestConfig
  ): Promise<TData> => {
@@ -1267,28 +1301,6 @@ export const getUserStatsApiV1ConversationsUsersStatsGet = <TData = AxiosRespons
   }
 
 /**
- * 删除当前用户的所有历史会话
-
-Args:
-    current_user: 当前登录用户
-    db: 数据库会话
-    hard_delete: 是否硬删除（彻底删除），默认为硬删除
-
-Returns:
-    BaseResponse: 删除结果
- * @summary 删除所有历史会话
- */
-export const deleteAllConversationsApiV1ConversationsAllDelete = <TData = AxiosResponse<BaseResponse>>(
-    params?: DeleteAllConversationsApiV1ConversationsAllDeleteParams, options?: AxiosRequestConfig
- ): Promise<TData> => {
-    return axios.delete(
-      `/api/v1/conversations/all`,{
-    ...options,
-        params: {...params, ...options?.params},}
-    );
-  }
-
-/**
  * 处理 SPA 路由，所有路径都返回 index.html
  * @summary Serve Spa
  */
@@ -1314,19 +1326,19 @@ export type UpdateUserSettingsApiV1UsersSettingsPutResult = AxiosResponse<BaseRe
 export type GetUserApiV1UsersUserIdGetResult = AxiosResponse<BaseResponseUserResponse>
 export type UpdateUserApiV1UsersUserIdPutResult = AxiosResponse<BaseResponseUserResponse>
 export type DeleteUserApiV1UsersUserIdDeleteResult = AxiosResponse<BaseResponseNoneType>
-export type ListAvailableModelsApiV1UsersModelsAvailableGetResult = AxiosResponse<BaseResponseListModelInfo>
+export type ListAvailableModelsApiV1UsersModelsAvailableGetResult = AxiosResponse<BaseResponseListDictStrAny>
 export type ChatApiV1ChatPostResult = AxiosResponse<BaseResponseChatResponse>
 export type ChatStreamApiV1ChatStreamPostResult = AxiosResponse<unknown>
 export type StopChatApiV1ChatStopPostResult = AxiosResponse<unknown>
 export type CreateConversationApiV1ConversationsPostResult = AxiosResponse<BaseResponseConversationResponse>
 export type ListConversationsApiV1ConversationsGetResult = AxiosResponse<BaseResponsePageResponseConversationResponse>
+export type DeleteAllConversationsApiV1ConversationsAllDeleteResult = AxiosResponse<BaseResponse>
 export type GetConversationApiV1ConversationsThreadIdGetResult = AxiosResponse<BaseResponseConversationDetailResponse>
 export type UpdateConversationApiV1ConversationsThreadIdPatchResult = AxiosResponse<BaseResponseDict>
 export type DeleteConversationApiV1ConversationsThreadIdDeleteResult = AxiosResponse<BaseResponseDict>
 export type ResetConversationApiV1ConversationsThreadIdResetPostResult = AxiosResponse<unknown>
-export type GetMessagesApiV1ConversationsThreadIdMessagesGetResult = AxiosResponse<BaseResponseListMessageResponse>
+export type GetMessagesApiV1ConversationsThreadIdMessagesGetResult = AxiosResponse<BaseResponsePageResponseMessageResponse>
 export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetResult = AxiosResponse<BaseResponseCheckpointResponse>
 export type SearchConversationsApiV1ConversationsSearchPostResult = AxiosResponse<BaseResponseSearchResponse>
 export type GetUserStatsApiV1ConversationsUsersStatsGetResult = AxiosResponse<BaseResponseUserStatsResponse>
-export type DeleteAllConversationsApiV1ConversationsAllDeleteResult = AxiosResponse<BaseResponse>
 export type ServeSpaWebFullPathGetResult = AxiosResponse<unknown>

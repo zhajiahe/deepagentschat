@@ -71,7 +71,7 @@ export const useConversations = () => {
         const response = await request.get(
           `/conversations/${conversation.thread_id}/messages`
         );
-        // 解析 BaseResponse 包装的数据
+        // 解析 BaseResponse 包装的数据（现在返回 PageResponse 格式）
         if (response.data.success && response.data.data) {
           // 将 MessageResponse 转换为 Message 类型，并按创建时间排序（如果时间相同，则按ID排序）
           // 规范化角色：将 'ai' 映射为 'assistant' 以兼容旧数据
@@ -80,7 +80,9 @@ export const useConversations = () => {
             if (role === 'human' || role === 'user') return 'user';
             return role as 'user' | 'assistant' | 'system';
           };
-          const messages = response.data.data
+          // 从 PageResponse 中提取 items 数组
+          const messageItems = response.data.data.items || response.data.data;
+          const messages = messageItems
             .map((msg: MessageResponse) => ({
               id: msg.id,
               role: normalizeRole(msg.role),

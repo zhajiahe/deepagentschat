@@ -18,7 +18,7 @@ export const useChat = () => {
 
   // 发送消息（流式）
   const sendMessageStream = useCallback(
-    async (content: string) => {
+    async (content: string, onNewConversation?: (threadId: string) => void) => {
       if (!content.trim() || isSending) return;
 
       setIsSending(true);
@@ -76,6 +76,7 @@ export const useChat = () => {
         let streamDone = false;
         const toolCalls: any[] = [];
         const toolCallsMap = new Map<string, any>();
+        let newThreadId: string | null = null;
 
         if (reader) {
           while (true) {
@@ -93,6 +94,11 @@ export const useChat = () => {
                 }
                 try {
                   const parsed = JSON.parse(data);
+
+                  // 捕获 thread_id（用于新会话）
+                  if (parsed.thread_id && !currentConversation) {
+                    newThreadId = parsed.thread_id;
+                  }
 
                   // 处理不同类型的事件
                   if (parsed.type === 'content' && parsed.content) {
@@ -171,19 +177,27 @@ export const useChat = () => {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
 
+        // 如果是新会话，通知父组件
+        if (newThreadId && !currentConversation && onNewConversation) {
+          onNewConversation(newThreadId);
+        }
+
         // 流式完成后，重新加载消息以获取实际的数据库ID
-        if (currentConversation?.thread_id) {
+        const targetThreadId = currentConversation?.thread_id || newThreadId;
+        if (targetThreadId) {
           const messagesResponse = await request.get(
-            `/conversations/${currentConversation.thread_id}/messages`
+            `/conversations/${targetThreadId}/messages`
           );
-          // 解析 BaseResponse 包装的数据
+          // 解析 BaseResponse 包装的数据（现在返回 PageResponse 格式）
           if (messagesResponse.data.success && messagesResponse.data.data) {
             const normalizeRole = (role: string): 'user' | 'assistant' | 'system' => {
               if (role === 'ai' || role === 'assistant') return 'assistant';
               if (role === 'human' || role === 'user') return 'user';
               return role as 'user' | 'assistant' | 'system';
             };
-            const messages = messagesResponse.data.data
+            // 从 PageResponse 中提取 items 数组
+            const messageItems = messagesResponse.data.data.items || messagesResponse.data.data;
+            const messages = messageItems
               .map((msg: MessageResponse) => ({
                 id: msg.id,
                 role: normalizeRole(msg.role),
@@ -261,7 +275,9 @@ export const useChat = () => {
                 if (role === 'human' || role === 'user') return 'user';
                 return role as 'user' | 'assistant' | 'system';
               };
-              const messages = messagesResponse.data.data
+              // 从 PageResponse 中提取 items 数组
+              const messageItems = messagesResponse.data.data.items || messagesResponse.data.data;
+              const messages = messageItems
                 .map((msg: MessageResponse) => ({
                   id: msg.id,
                   role: normalizeRole(msg.role),

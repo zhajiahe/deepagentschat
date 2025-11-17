@@ -16,7 +16,7 @@ from app.core.deps import CurrentUser
 from app.core.exceptions import raise_internal_error, raise_not_found_error
 from app.core.lifespan import get_compiled_graph
 from app.models import Conversation, Message
-from app.models.base import BaseResponse, PageResponse
+from app.models.base import BasePageQuery, BaseResponse, PageResponse
 from app.schemas import (
     CheckpointResponse,
     ConversationCreate,
@@ -100,28 +100,26 @@ async def create_conversation(
 @router.get("", response_model=BaseResponse[PageResponse[ConversationResponse]])
 async def list_conversations(
     current_user: CurrentUser,
-    skip: int = 0,
-    limit: int = 20,
+    page_query: BasePageQuery = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     """
     获取用户的会话列表
 
     Args:
-        user_id: 用户ID
-        skip: 跳过数量
-        limit: 返回数量
+        current_user: 当前用户
+        page_query: 分页参数（page_num, page_size）
         db: 数据库会话
 
     Returns:
-        list[ConversationResponse]: 会话列表
+        PageResponse[ConversationResponse]: 分页的会话列表
     """
     result = await db.execute(
         select(Conversation)
         .where(Conversation.user_id == current_user.id, Conversation.is_active == 1)
         .order_by(Conversation.update_time.desc())
-        .offset(skip)
-        .limit(limit)
+        .offset(page_query.offset)
+        .limit(page_query.limit)
     )
     conversations = result.scalars().all()
 
@@ -155,8 +153,8 @@ async def list_conversations(
         code=200,
         msg="获取会话列表成功",
         data=PageResponse(
-            page_num=(skip // limit) + 1,
-            page_size=limit,
+            page_num=page_query.page_num,
+            page_size=page_query.page_size,
             total=total,
             items=response_list,
         ),
@@ -425,12 +423,11 @@ async def reset_conversation(
 # ============= 消息管理接口 =============
 
 
-@router.get("/{thread_id}/messages", response_model=BaseResponse[list[MessageResponse]])
+@router.get("/{thread_id}/messages", response_model=BaseResponse[PageResponse[MessageResponse]])
 async def get_messages(
     thread_id: str,
     current_user: CurrentUser,
-    skip: int = 0,
-    limit: int = 50,
+    page_query: BasePageQuery = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -438,22 +435,27 @@ async def get_messages(
 
     Args:
         thread_id: 线程ID
-        skip: 跳过数量
-        limit: 返回数量
+        current_user: 当前用户
+        page_query: 分页参数（page_num, page_size）
         db: 数据库会话
 
     Returns:
-        list[MessageResponse]: 消息列表
+        PageResponse[MessageResponse]: 分页的消息列表
     """
     # 验证会话所有权
     await verify_conversation_ownership(thread_id, current_user.id, db)
 
+    # 获取总数
+    count_result = await db.execute(select(func.count(Message.id)).where(Message.thread_id == thread_id))
+    total = count_result.scalar() or 0
+
+    # 分页查询
     result = await db.execute(
         select(Message)
         .where(Message.thread_id == thread_id)
         .order_by(Message.create_time.desc())
-        .offset(skip)
-        .limit(limit)
+        .offset(page_query.offset)
+        .limit(page_query.limit)
     )
     messages = result.scalars().all()
 
@@ -472,7 +474,12 @@ async def get_messages(
         success=True,
         code=200,
         msg="获取消息列表成功",
-        data=message_list,
+        data=PageResponse(
+            page_num=page_query.page_num,
+            page_size=page_query.page_size,
+            total=total,
+            items=message_list,
+        ),
     )
 
 

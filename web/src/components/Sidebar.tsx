@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PlusIcon, MessageSquareIcon, TrashIcon, EditIcon, CheckIcon, XIcon } from 'lucide-react';
 import { useConversations } from '@/hooks/useConversations';
+import { useChatStore } from '@/stores/chatStore';
 import { ConversationResponse } from '@/api/aPIDoc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,11 +20,11 @@ export const Sidebar = () => {
   const {
     conversations,
     currentConversation,
-    createConversation,
     selectConversation,
     updateConversationTitle,
     removeConversation,
   } = useConversations();
+  const { setCurrentConversation, setMessages } = useChatStore();
   const { toast } = useToast();
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,12 +32,11 @@ export const Sidebar = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [targetConversationId, setTargetConversationId] = useState<string | null>(null);
 
-  const handleCreateConversation = async () => {
-    try {
-      await createConversation();
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-    }
+  const handleCreateConversation = () => {
+    // 不再直接创建空会话，而是清空当前选择，让用户开始新对话
+    // 当用户发送第一条消息时，系统会自动创建会话
+    setCurrentConversation(null);
+    setMessages([]);
   };
 
   const handleStartEdit = (conversation: ConversationResponse) => {
