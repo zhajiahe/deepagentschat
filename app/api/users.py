@@ -7,14 +7,18 @@
 import uuid
 
 from fastapi import APIRouter, Depends, status
+from loguru import logger
+from openai import OpenAI
 from sqlalchemy import func, select
 
+from app.core.config import settings
 from app.core.deps import CurrentSuperUser, CurrentUser, DBSession
 from app.core.exceptions import raise_auth_error, raise_business_error, raise_conflict_error, raise_not_found_error
 from app.core.security import create_tokens, get_password_hash, verify_password
 from app.models.base import BasePageQuery, BaseResponse, PageResponse, Token
 from app.models.user import User
 from app.models.user_settings import UserSettings
+from app.schemas.model import ModelInfo
 from app.schemas.user import PasswordChange, UserCreate, UserListQuery, UserResponse, UserUpdate
 from app.schemas.user_settings import UserSettingsResponse, UserSettingsUpdate
 
@@ -542,3 +546,58 @@ async def delete_user(
     await db.commit()
 
     return BaseResponse(success=True, code=200, msg="删除用户成功", data=None)
+
+
+# ==================== 模型管理接口 ====================
+
+
+@router.get("/models/available", response_model=BaseResponse[list[ModelInfo]])
+async def list_available_models(_current_user: CurrentUser, db: DBSession):
+    """
+    获取可用的 LLM 模型列表
+
+    从用户配置的 API 端点动态获取模型列表
+
+    Args:
+        _current_user: 当前登录用户
+        db: 数据库会话
+
+    Returns:
+        list[ModelInfo]: 可用模型列表
+    """
+    # 获取用户设置
+    result = await db.execute(select(UserSettings).where(UserSettings.user_id == _current_user.id))
+    user_settings = result.scalar_one_or_none()
+
+    # 获取 API 配置（优先使用用户配置，否则使用全局配置）
+    base_url = settings.OPENAI_API_BASE
+    api_key = settings.OPENAI_API_KEY
+
+    if user_settings and user_settings.settings:
+        base_url = user_settings.settings.get("base_url") or base_url
+        api_key = user_settings.settings.get("api_key") or api_key
+
+    # 验证配置
+    if not base_url or not api_key:
+        raise_business_error("API 密钥或基础 URL 未配置")
+
+    try:
+        # 初始化 OpenAI 客户端
+        client = OpenAI(base_url=base_url, api_key=api_key)
+
+        # 获取模型列表
+        models_response = client.models.list()
+
+        # 转换为 ModelInfo 对象
+        models = [ModelInfo(**model.model_dump()) for model in models_response.data]
+
+        return BaseResponse(
+            success=True,
+            code=200,
+            msg="获取可用模型列表成功",
+            data=models,
+        )
+
+    except Exception as e:
+        logger.error(f"获取模型列表失败: {e}")
+        raise_business_error(f"获取模型列表失败: {str(e)}")

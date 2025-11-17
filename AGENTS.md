@@ -282,9 +282,9 @@ DEBUG=true
 CHECKPOINT_DB_PATH=./langgraph_app.db
 
 # LangChain / SiliconFlow 模型
-SILICONFLOW_API_KEY=your-api-key
-SILICONFLOW_API_BASE=https://api.siliconflow.cn/v1
-SILICONFLOW_LLM_MODEL=Qwen/Qwen3-8B
+OPENAI_API_KEY=your-api-key
+OPENAI_API_BASE=https://api.siliconflow.cn/v1
+DEFAULT_LLM_MODEL=Qwen/Qwen3-8B
 ```
 
 ## 扩展建议

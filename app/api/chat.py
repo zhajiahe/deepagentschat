@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.deps import CurrentUser
 from app.core.exceptions import (
@@ -24,7 +25,7 @@ from app.core.exceptions import (
     raise_internal_error,
     raise_not_found_error,
 )
-from app.core.lifespan import get_compiled_graph
+from app.core.lifespan import get_cached_graph
 from app.models import Conversation, Message, UserSettings
 from app.models.base import BaseResponse
 from app.schemas import ChatRequest, ChatResponse
@@ -102,7 +103,9 @@ async def get_or_create_conversation(
         return thread_id, conv
 
 
-async def get_user_config(user_id: uuid.UUID, thread_id: str, db: AsyncSession) -> tuple[dict, dict]:
+async def get_user_config(
+    user_id: uuid.UUID, thread_id: str, db: AsyncSession
+) -> tuple[dict, dict, dict[str, str | int | None]]:
     """获取用户配置
 
     Args:
@@ -111,19 +114,52 @@ async def get_user_config(user_id: uuid.UUID, thread_id: str, db: AsyncSession) 
         db: 数据库会话
 
     Returns:
-        tuple[dict, dict]: (config, context)
+        tuple[dict, dict, dict]: (config, context, llm_params)
+            - config: LangGraph 配置（包含 thread_id、user_id 等）
+            - context: LangGraph 上下文
+            - llm_params: LLM 模型参数（llm_model, api_key, base_url, max_tokens）
     """
     config: dict = {"configurable": {"thread_id": thread_id, "user_id": str(user_id)}}
     context: dict = {}
+    llm_params: dict[str, str | int | None] = {
+        "llm_model": None,
+        "api_key": None,
+        "base_url": None,
+        "max_tokens": 4096,
+    }
 
     result = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
     user_settings = result.scalar_one_or_none()
 
     if user_settings:
+        # LangGraph 配置和上下文
         config["configurable"].update(user_settings.config or {})
         context = user_settings.context or {}
 
-    return config, context
+        # LLM 模型参数（用于动态创建图）
+        if user_settings.llm_model:
+            llm_params["llm_model"] = user_settings.llm_model
+        if user_settings.max_tokens:
+            llm_params["max_tokens"] = user_settings.max_tokens
+
+        # 从用户设置中读取 API 密钥和基础 URL（如果有）
+        user_api_key = user_settings.settings.get("api_key") if user_settings.settings else None
+        user_base_url = user_settings.settings.get("base_url") if user_settings.settings else None
+
+        if user_api_key:
+            llm_params["api_key"] = user_api_key
+        if user_base_url:
+            llm_params["base_url"] = user_base_url
+
+    # 使用全局配置作为默认值
+    if not llm_params["llm_model"]:
+        llm_params["llm_model"] = settings.DEFAULT_LLM_MODEL
+    if not llm_params["api_key"]:
+        llm_params["api_key"] = settings.OPENAI_API_KEY
+    if not llm_params["base_url"]:
+        llm_params["base_url"] = settings.OPENAI_API_BASE
+
+    return config, context, llm_params
 
 
 async def save_user_message(thread_id: str, message: str, metadata: dict | None, db: AsyncSession) -> None:
@@ -200,8 +236,8 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
         request.thread_id, request.message, current_user.id, request.metadata, db
     )
 
-    # 获取用户配置
-    config, context = await get_user_config(current_user.id, thread_id, db)
+    # 获取用户配置（包括 LLM 参数）
+    config, context, llm_params = await get_user_config(current_user.id, thread_id, db)
 
     try:
         # 保存用户消息
@@ -209,7 +245,14 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
 
         # 执行图（异步）- 使用任务包装以便支持取消
         start_time = utc_now()
-        compiled_graph = get_compiled_graph()
+
+        # 根据用户配置获取对应的图实例（带缓存）
+        compiled_graph = get_cached_graph(
+            llm_model=llm_params["llm_model"],
+            api_key=llm_params["api_key"],
+            base_url=llm_params["base_url"],
+            max_tokens=llm_params["max_tokens"],
+        )
 
         # 创建任务并注册
         invoke_task = asyncio.create_task(
@@ -279,8 +322,8 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
     # 保存用户消息
     await save_user_message(thread_id, request.message, request.metadata, db)
 
-    # 获取用户配置
-    config, context = await get_user_config(current_user.id, thread_id, db)
+    # 获取用户配置（包括 LLM 参数）
+    config, context, llm_params = await get_user_config(current_user.id, thread_id, db)
 
     async def event_generator():
         all_messages = []
@@ -292,7 +335,13 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
             await task_manager.register_task(thread_id, current_task)
 
         try:
-            compiled_graph = get_compiled_graph()
+            # 根据用户配置获取对应的图实例（带缓存）
+            compiled_graph = get_cached_graph(
+                llm_model=llm_params["llm_model"],
+                api_key=llm_params["api_key"],
+                base_url=llm_params["base_url"],
+                max_tokens=llm_params["max_tokens"],
+            )
             # 使用 astream_events 获取逐token流式输出
             async for event in compiled_graph.astream_events(
                 {"messages": [HumanMessage(content=request.message)]},

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # 使用与主数据库相同的文件
     CHECKPOINT_DB_PATH: str = "./langgraph_app.db"
 
+    # LLM 配置
+    OPENAI_API_KEY: str | None = None  # OpenAI API 密钥
+    OPENAI_API_BASE: str | None = None  # OpenAI API 基础 URL
+    DEFAULT_LLM_MODEL: str = "Qwen/Qwen3-8B"  # 默认 LLM 模型
+
     # 应用配置
     APP_NAME: str = "FastAPI Template"
     DEBUG: bool = True

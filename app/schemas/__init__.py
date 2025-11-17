@@ -17,6 +17,7 @@ from app.schemas.conversation import (
     SearchResponse,
     UserStatsResponse,
 )
+from app.schemas.model import ModelInfo, ModelListResponse
 from app.schemas.user import PasswordChange, UserCreate, UserListQuery, UserResponse, UserUpdate
 from app.schemas.user_settings import UserSettingsResponse, UserSettingsUpdate
 
@@ -41,4 +42,6 @@ __all__ = [
     "SearchRequest",
     "SearchResponse",
     "UserStatsResponse",
+    "ModelInfo",
+    "ModelListResponse",
 ]

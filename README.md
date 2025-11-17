@@ -63,8 +63,8 @@ APP_NAME=FastAPI-Template
 DEBUG=true
 
 # LLM 配置（可选）
-SILICONFLOW_API_KEY=your-api-key
-SILICONFLOW_LLM_MODEL=Qwen/Qwen3-8B
+OPENAI_API_KEY=your-api-key
+DEFAULT_LLM_MODEL=Qwen/Qwen3-8B
 ```
 
 ### 4. 初始化数据库

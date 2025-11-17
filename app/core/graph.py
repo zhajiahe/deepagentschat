@@ -7,7 +7,13 @@ LangGraph 图定义
 from app.sample_agent import get_agent
 
 
-def create_graph(checkpointer=None):
+def create_graph(
+    checkpointer=None,
+    llm_model: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    max_tokens: int = 4096,
+):
     """
     创建 LangGraph 对话流程图
 
@@ -15,9 +21,13 @@ def create_graph(checkpointer=None):
 
     Args:
         checkpointer: 可选的检查点保存器，用于状态持久化
-
+        llm_model: 可选的 LLM 模型
+        api_key: 可选的 API 密钥
+        base_url: 可选的 API 基础 URL
+        max_tokens: 可选的最大 token 数
     Returns:
-        CompiledGraph: 编译后的 Agent 图
+        Runnable: 可运行的 Agent 图
     """
-    # create_agent 返回的已经是编译后的图，可以直接使用
-    return get_agent(checkpointer=checkpointer)
+    return get_agent(
+        checkpointer=checkpointer, llm_model=llm_model, api_key=api_key, base_url=base_url, max_tokens=max_tokens
+    )

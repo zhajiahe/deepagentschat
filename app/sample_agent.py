@@ -34,7 +34,13 @@ def math_tool(expression: str) -> str:
         return f"Error: {e}"
 
 
-def get_agent(checkpointer: Any | None = None) -> Runnable:
+def get_agent(
+    checkpointer: Any | None = None,
+    llm_model: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    max_tokens: int = 4096,
+) -> Runnable:
     """
     创建并返回 Agent 图
 
@@ -44,17 +50,15 @@ def get_agent(checkpointer: Any | None = None) -> Runnable:
     Returns:
         CompiledGraph: 编译后的 Agent 图
     """
-    api_key_value = os.getenv("SILICONFLOW_API_KEY")
+    api_key_value = api_key or os.getenv("OPENAI_API_KEY")
     secret_api_key: SecretStr | None = SecretStr(api_key_value) if api_key_value else None
 
     model = ChatOpenAI(
-        model=os.getenv("SILICONFLOW_LLM_MODEL", "Qwen/Qwen3-8B"),
+        model=llm_model or os.getenv("DEFAULT_LLM_MODEL", "Qwen/Qwen3-8B"),
         api_key=secret_api_key,
-        base_url=os.getenv("SILICONFLOW_API_BASE"),
-        max_completion_tokens=500,
-        temperature=0,
+        base_url=base_url or os.getenv("OPENAI_API_BASE"),
+        max_completion_tokens=max_tokens,
         streaming=True,  # 启用流式输出
-        extra_body={"thinking_budget": 20},
     )
     agent: Runnable = create_agent(model, tools=[math_tool], checkpointer=checkpointer)
     return agent
