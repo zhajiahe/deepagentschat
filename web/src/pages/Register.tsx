@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import request from '@/utils/request';
-import { UserCreate, BaseResponseUserResponse } from '@/api/aPIDoc';
+import { Link, useNavigate } from 'react-router-dom';
+import type { BaseResponseUserResponse, UserCreate } from '@/api/aPIDoc';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import request from '@/utils/request';
 
 export const Register = () => {
   const navigate = useNavigate();
@@ -91,9 +91,7 @@ export const Register = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">注册</CardTitle>
-          <CardDescription className="text-center">
-            创建新账号
-          </CardDescription>
+          <CardDescription className="text-center">创建新账号</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -167,11 +165,7 @@ export const Register = () => {
               />
             </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '注册中...' : '注册'}
             </Button>
 

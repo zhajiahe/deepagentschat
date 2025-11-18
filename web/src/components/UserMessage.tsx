@@ -1,7 +1,7 @@
-import { UserIcon, CopyIcon, CheckIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { CheckIcon, CopyIcon, UserIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Message } from '@/stores/chatStore';
+import { Button } from '@/components/ui/button';
+import type { Message } from '@/stores/chatStore';
 import { formatTime } from '@/utils/date';
 
 interface UserMessageProps {

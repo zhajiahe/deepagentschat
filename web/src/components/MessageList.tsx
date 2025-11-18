@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
 import { BotIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MessageSkeleton } from '@/components/MessageSkeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Message } from '@/stores/chatStore';
+import { type Message, useChatStore } from '@/stores/chatStore';
 import { useUserSettingsStore } from '@/stores/userSettingsStore';
-import { MessageSkeleton } from '@/components/MessageSkeleton';
-import { MessageItem } from '@/components/MessageItem';
-import { useChatStore } from '@/stores/chatStore';
 import 'highlight.js/styles/github-dark.css';
 
 interface MessageListProps {
@@ -39,10 +37,12 @@ export const MessageList = ({ messages }: MessageListProps) => {
   const expandedMessages: ExpandedMessage[] = [];
   messages.forEach((message) => {
     // 如果是 AI 消息且有工具调用，先显示工具调用
-    if ((message.role === 'assistant' || message.role === 'ai') &&
-        settings.show_tool_calls &&
-        message.metadata?.tool_calls &&
-        message.metadata.tool_calls.length > 0) {
+    if (
+      (message.role === 'assistant' || message.role === 'ai') &&
+      settings.show_tool_calls &&
+      message.metadata?.tool_calls &&
+      message.metadata.tool_calls.length > 0
+    ) {
       // 添加工具调用消息
       message.metadata.tool_calls.forEach((toolCall, index) => {
         expandedMessages.push({
@@ -59,7 +59,7 @@ export const MessageList = ({ messages }: MessageListProps) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [expandedMessages.length]);
+  }, [scrollToBottom]);
 
   const handleCopy = (content: string, id: number) => {
     navigator.clipboard.writeText(content);
@@ -90,9 +90,7 @@ export const MessageList = ({ messages }: MessageListProps) => {
             <BotIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
           </div>
           <h3 className="text-lg sm:text-xl font-semibold mb-2">开始新的对话</h3>
-          <p className="text-sm text-muted-foreground px-4">
-            输入消息开始与 AI 助手聊天
-          </p>
+          <p className="text-sm text-muted-foreground px-4">输入消息开始与 AI 助手聊天</p>
         </div>
       </div>
     );
@@ -109,10 +107,16 @@ export const MessageList = ({ messages }: MessageListProps) => {
               style={{ animationDelay: `${index * 0.05}s` }}
             >
               {/* 左侧头像区域 */}
-              {(message.role === 'assistant' || message.role === 'ai' || message.isToolCall) ? (
+              {message.role === 'assistant' || message.role === 'ai' || message.isToolCall ? (
                 <Avatar className="flex-shrink-0 w-10 h-10 ring-2 ring-primary/20 shadow-md">
-                  <AvatarFallback className={message.isToolCall ? "bg-gradient-to-br from-orange-500 to-red-600" : "bg-gradient-to-br from-emerald-400 to-slate-500"}>
-                    {message.isToolCall ? "🔧" : <BotIcon size={20} className="text-white" />}
+                  <AvatarFallback
+                    className={
+                      message.isToolCall
+                        ? 'bg-gradient-to-br from-orange-500 to-red-600'
+                        : 'bg-gradient-to-br from-emerald-400 to-slate-500'
+                    }
+                  >
+                    {message.isToolCall ? '🔧' : <BotIcon size={20} className="text-white" />}
                   </AvatarFallback>
                 </Avatar>
               ) : (
@@ -127,8 +131,8 @@ export const MessageList = ({ messages }: MessageListProps) => {
                       message.role === 'user'
                         ? 'bg-gradient-to-br from-emerald-400 to-slate-500 text-white'
                         : message.isToolCall
-                        ? 'bg-orange-50 dark:bg-orange-950/30 text-foreground border-2 border-orange-300 dark:border-orange-700'
-                        : 'bg-muted/50 dark:bg-muted text-foreground border border-border'
+                          ? 'bg-orange-50 dark:bg-orange-950/30 text-foreground border-2 border-orange-300 dark:border-orange-700'
+                          : 'bg-muted/50 dark:bg-muted text-foreground border border-border'
                     }`}
                   >
                     {/* 工具调用消息 */}
@@ -142,17 +146,16 @@ export const MessageList = ({ messages }: MessageListProps) => {
                             <span className="text-lg">🔧</span>
                             <span>调用工具: {message.toolCall.name}</span>
                           </div>
-                          <span className="text-sm">
-                            {expandedToolCalls.has(message.id) ? '▼' : '▶'}
-                          </span>
+                          <span className="text-sm">{expandedToolCalls.has(message.id) ? '▼' : '▶'}</span>
                         </button>
 
                         {/* 简洁显示输入参数 */}
-                        {!expandedToolCalls.has(message.id) && (message.toolCall.arguments || message.toolCall.input) && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {JSON.stringify(message.toolCall.arguments || message.toolCall.input)}
-                          </div>
-                        )}
+                        {!expandedToolCalls.has(message.id) &&
+                          (message.toolCall.arguments || message.toolCall.input) && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {JSON.stringify(message.toolCall.arguments || message.toolCall.input)}
+                            </div>
+                          )}
 
                         {expandedToolCalls.has(message.id) && (
                           <div className="space-y-2 animate-slide-up">
@@ -177,24 +180,28 @@ export const MessageList = ({ messages }: MessageListProps) => {
                           </div>
                         )}
                       </div>
-                    ) : (message.role === 'assistant' || message.role === 'ai') ? (
-                      <>
-                        <div className="prose prose-base max-w-none dark:prose-invert prose-pre:bg-gray-900 prose-pre:text-gray-100 w-full">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeHighlight]}
-                          >
-                            {message.content}
-                          </ReactMarkdown>
-                          {message.isStreaming && (
-                            <span className="inline-flex gap-1 ml-2 items-center">
-                              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                            </span>
-                          )}
-                        </div>
-                      </>
+                    ) : message.role === 'assistant' || message.role === 'ai' ? (
+                      <div className="prose prose-base max-w-none dark:prose-invert prose-pre:bg-gray-900 prose-pre:text-gray-100 w-full">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                          {message.content}
+                        </ReactMarkdown>
+                        {message.isStreaming && (
+                          <span className="inline-flex gap-1 ml-2 items-center">
+                            <span
+                              className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                              style={{ animationDelay: '0ms' }}
+                            />
+                            <span
+                              className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                              style={{ animationDelay: '150ms' }}
+                            />
+                            <span
+                              className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                              style={{ animationDelay: '300ms' }}
+                            />
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <div className="whitespace-pre-wrap">{message.content}</div>
                     )}

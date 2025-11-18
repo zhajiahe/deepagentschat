@@ -1,19 +1,13 @@
+import { SearchIcon } from 'lucide-react';
 import { useState } from 'react';
-import { SearchIcon, XIcon } from 'lucide-react';
-import request from '@/utils/request';
-import { SearchRequest, SearchResponse } from '@/api/aPIDoc';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { SearchRequest } from '@/api/aPIDoc';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import request from '@/utils/request';
 
 interface SearchDialogProps {
   isOpen: boolean;
@@ -86,15 +80,16 @@ export const SearchDialog = ({ isOpen, onClose, onSelectConversation }: SearchDi
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>搜索会话和消息</DialogTitle>
-          <DialogDescription>
-            输入关键词搜索会话标题和消息内容
-          </DialogDescription>
+          <DialogDescription>输入关键词搜索会话标题和消息内容</DialogDescription>
         </DialogHeader>
 
         {/* Search Input */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <SearchIcon size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+            <SearchIcon
+              size={20}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
+            />
             <Input
               type="text"
               value={query}
@@ -114,22 +109,14 @@ export const SearchDialog = ({ isOpen, onClose, onSelectConversation }: SearchDi
 
         {/* Results */}
         <ScrollArea className="max-h-96">
-          {loading && (
-            <div className="text-center text-muted-foreground py-8">
-              搜索中...
-            </div>
-          )}
+          {loading && <div className="text-center text-muted-foreground py-8">搜索中...</div>}
 
           {!loading && searched && results.length === 0 && (
-            <div className="text-center text-muted-foreground py-8">
-              没有找到匹配的结果
-            </div>
+            <div className="text-center text-muted-foreground py-8">没有找到匹配的结果</div>
           )}
 
           {!loading && !searched && (
-            <div className="text-center text-muted-foreground py-8">
-              输入关键词并按 Enter 搜索
-            </div>
+            <div className="text-center text-muted-foreground py-8">输入关键词并按 Enter 搜索</div>
           )}
 
           {!loading && results.length > 0 && (
@@ -140,23 +127,13 @@ export const SearchDialog = ({ isOpen, onClose, onSelectConversation }: SearchDi
                   onClick={() => handleSelectResult(result.thread_id)}
                   className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors"
                 >
-                  <div className="font-medium mb-1">
-                    {result.title || '未命名会话'}
-                  </div>
-                  {result.content && (
-                    <div className="text-sm text-muted-foreground line-clamp-2">
-                      {result.content}
-                    </div>
-                  )}
+                  <div className="font-medium mb-1">{result.title || '未命名会话'}</div>
+                  {result.content && <div className="text-sm text-muted-foreground line-clamp-2">{result.content}</div>}
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                     {result.role && (
-                      <span className="px-2 py-1 bg-muted rounded">
-                        {result.role === 'user' ? '用户' : '助手'}
-                      </span>
+                      <span className="px-2 py-1 bg-muted rounded">{result.role === 'user' ? '用户' : '助手'}</span>
                     )}
-                    {result.created_at && (
-                      <span>{new Date(result.created_at).toLocaleString()}</span>
-                    )}
+                    {result.created_at && <span>{new Date(result.created_at).toLocaleString()}</span>}
                   </div>
                 </div>
               ))}
@@ -173,9 +150,7 @@ export const SearchDialog = ({ isOpen, onClose, onSelectConversation }: SearchDi
             <kbd className="px-2 py-1 bg-muted border rounded">Esc</kbd>
             <span>关闭</span>
           </div>
-          {results.length > 0 && (
-            <div>找到 {results.length} 个结果</div>
-          )}
+          {results.length > 0 && <div>找到 {results.length} 个结果</div>}
         </div>
       </DialogContent>
     </Dialog>

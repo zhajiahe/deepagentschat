@@ -1,12 +1,7 @@
 import { useCallback, useEffect } from 'react';
+import type { ConversationCreate, ConversationResponse, ConversationUpdate, MessageResponse } from '@/api/aPIDoc';
 import { useChatStore } from '@/stores/chatStore';
 import request from '@/utils/request';
-import {
-  ConversationResponse,
-  ConversationCreate,
-  ConversationUpdate,
-  MessageResponse,
-} from '@/api/aPIDoc';
 
 export const useConversations = () => {
   const {
@@ -68,9 +63,7 @@ export const useConversations = () => {
         setCurrentConversation(conversation);
 
         // 加载会话消息
-        const response = await request.get(
-          `/conversations/${conversation.thread_id}/messages`
-        );
+        const response = await request.get(`/conversations/${conversation.thread_id}/messages`);
         // 解析 BaseResponse 包装的数据（现在返回 PageResponse 格式）
         if (response.data.success && response.data.data) {
           // 将 MessageResponse 转换为 Message 类型，并按创建时间排序（如果时间相同，则按ID排序）

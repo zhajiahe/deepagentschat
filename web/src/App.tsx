@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
-import { useThemeStore } from '@/stores/themeStore';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { Toaster } from '@/components/ui/toaster';
+import { Chat } from '@/pages/Chat';
 import { Login } from '@/pages/Login';
 import { Register } from '@/pages/Register';
-import { Chat } from '@/pages/Chat';
 import { Settings } from '@/pages/Settings';
-import { Toaster } from '@/components/ui/toaster';
+import { useAuthStore } from '@/stores/authStore';
+import { useThemeStore } from '@/stores/themeStore';
 
 function App() {
   const { initAuth, isAuthenticated } = useAuthStore();
@@ -33,27 +33,11 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route
-          path="/chat"
-          element={
-            isAuthenticated ? <Chat /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            isAuthenticated ? <Settings /> : <Navigate to="/login" replace />
-          }
-        />
+        <Route path="/chat" element={isAuthenticated ? <Chat /> : <Navigate to="/login" replace />} />
+        <Route path="/settings" element={isAuthenticated ? <Settings /> : <Navigate to="/login" replace />} />
         <Route
           path="/"
-          element={
-            isAuthenticated ? (
-              <Navigate to="/chat" replace />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
+          element={isAuthenticated ? <Navigate to="/chat" replace /> : <Navigate to="/login" replace />}
         />
       </Routes>
       <Toaster />

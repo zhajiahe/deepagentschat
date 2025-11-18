@@ -1,20 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
-import { useChatStore } from '@/stores/chatStore';
-import { useUserSettingsStore } from '@/stores/userSettingsStore';
-import request from '@/utils/request';
-import { UserSettingsResponse, UserSettingsUpdate, PasswordChange } from '@/api/aPIDoc';
-import { ArrowLeftIcon, SaveIcon, Trash2Icon, UserIcon, BotIcon, KeyIcon, BarChart3Icon } from 'lucide-react';
-import { UserStats, UserStatsRef } from '@/components/UserStats';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ArrowLeftIcon, BarChart3Icon, BotIcon, KeyIcon, SaveIcon, Trash2Icon, UserIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import type { PasswordChange, UserSettingsResponse, UserSettingsUpdate } from '@/api/aPIDoc';
+import { UserStats, type UserStatsRef } from '@/components/UserStats';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +14,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/stores/chatStore';
+import { useUserSettingsStore } from '@/stores/userSettingsStore';
+import request from '@/utils/request';
 
 export const Settings = () => {
   const navigate = useNavigate();
@@ -147,7 +147,7 @@ export const Settings = () => {
     loadSettings();
     loadAvailableModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, loadAvailableModels, loadSettings]);
 
   const handleSaveSettings = async () => {
     try {
@@ -304,9 +304,7 @@ export const Settings = () => {
           </Button>
           <div className="ml-4 flex-1">
             <h1 className="text-2xl font-semibold tracking-tight">设置</h1>
-            <p className="text-sm text-muted-foreground">
-              管理您的账户设置和偏好
-            </p>
+            <p className="text-sm text-muted-foreground">管理您的账户设置和偏好</p>
           </div>
         </div>
       </div>
@@ -363,22 +361,13 @@ export const Settings = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>账户信息</CardTitle>
-                  <CardDescription>
-                    查看和编辑您的账户基本信息
-                  </CardDescription>
+                  <CardDescription>查看和编辑您的账户基本信息</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-3">
                     <Label htmlFor="username">用户名</Label>
-                    <Input
-                      id="username"
-                      value={user?.username || ''}
-                      disabled
-                      className="bg-muted"
-                    />
-                    <p className="text-[0.8rem] text-muted-foreground">
-                      用户名不可修改
-                    </p>
+                    <Input id="username" value={user?.username || ''} disabled className="bg-muted" />
+                    <p className="text-[0.8rem] text-muted-foreground">用户名不可修改</p>
                   </div>
                   <div className="grid gap-3">
                     <Label htmlFor="nickname">昵称</Label>
@@ -422,20 +411,13 @@ export const Settings = () => {
                         >
                           取消
                         </Button>
-                        <Button
-                          onClick={handleUpdateProfile}
-                          disabled={saving}
-                        >
+                        <Button onClick={handleUpdateProfile} disabled={saving}>
                           <SaveIcon size={16} className="mr-2" />
                           {saving ? '保存中...' : '保存'}
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        onClick={() => setEditingProfile(true)}
-                      >
-                        编辑信息
-                      </Button>
+                      <Button onClick={() => setEditingProfile(true)}>编辑信息</Button>
                     )}
                   </div>
                 </CardContent>
@@ -445,9 +427,7 @@ export const Settings = () => {
               <Card className="border-destructive">
                 <CardHeader>
                   <CardTitle className="text-destructive">危险操作</CardTitle>
-                  <CardDescription>
-                    以下操作不可恢复，请谨慎操作
-                  </CardDescription>
+                  <CardDescription>以下操作不可恢复，请谨慎操作</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -458,10 +438,7 @@ export const Settings = () => {
                       </p>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            disabled={deletingConversations}
-                          >
+                          <Button variant="destructive" disabled={deletingConversations}>
                             <Trash2Icon size={16} className="mr-2" />
                             {deletingConversations ? '清除中...' : '清除所有对话'}
                           </Button>
@@ -498,9 +475,7 @@ export const Settings = () => {
             <Card>
               <CardHeader>
                 <CardTitle>AI 模型配置</CardTitle>
-                <CardDescription>
-                  配置默认的 AI 模型和参数，将应用于所有新对话
-                </CardDescription>
+                <CardDescription>配置默认的 AI 模型和参数，将应用于所有新对话</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-3">
@@ -528,15 +503,11 @@ export const Settings = () => {
                       id="llm_model"
                       type="text"
                       value={formData.llm_model}
-                      onChange={(e) =>
-                        setFormData({ ...formData, llm_model: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, llm_model: e.target.value })}
                       placeholder="例如: Qwen/Qwen2.5-7B-Instruct"
                     />
                   )}
-                  <p className="text-[0.8rem] text-muted-foreground">
-                    选择您偏好的 LLM 模型
-                  </p>
+                  <p className="text-[0.8rem] text-muted-foreground">选择您偏好的 LLM 模型</p>
                 </div>
 
                 <div className="grid gap-3">
@@ -548,24 +519,19 @@ export const Settings = () => {
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        max_tokens: parseInt(e.target.value) || 2000,
+                        max_tokens: parseInt(e.target.value, 10) || 2000,
                       })
                     }
                     min="100"
                     max="32768"
                   />
-                  <p className="text-[0.8rem] text-muted-foreground">
-                    控制模型生成的最大长度（100-32768）
-                  </p>
+                  <p className="text-[0.8rem] text-muted-foreground">控制模型生成的最大长度（100-32768）</p>
                 </div>
 
                 <Separator />
 
                 <div className="flex justify-end">
-                  <Button
-                    onClick={handleSaveSettings}
-                    disabled={saving}
-                  >
+                  <Button onClick={handleSaveSettings} disabled={saving}>
                     <SaveIcon size={16} className="mr-2" />
                     {saving ? '保存中...' : '保存设置'}
                   </Button>
@@ -579,9 +545,7 @@ export const Settings = () => {
             <Card>
               <CardHeader>
                 <CardTitle>修改密码</CardTitle>
-                <CardDescription>
-                  更新您的登录密码以保护账户安全
-                </CardDescription>
+                <CardDescription>更新您的登录密码以保护账户安全</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleChangePassword} className="space-y-6">
@@ -591,9 +555,7 @@ export const Settings = () => {
                       id="old_password"
                       type="password"
                       value={passwordData.old_password}
-                      onChange={(e) =>
-                        setPasswordData({ ...passwordData, old_password: e.target.value })
-                      }
+                      onChange={(e) => setPasswordData({ ...passwordData, old_password: e.target.value })}
                       required
                       placeholder="输入当前密码"
                     />
@@ -605,16 +567,12 @@ export const Settings = () => {
                       id="new_password"
                       type="password"
                       value={passwordData.new_password}
-                      onChange={(e) =>
-                        setPasswordData({ ...passwordData, new_password: e.target.value })
-                      }
+                      onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
                       required
                       minLength={6}
                       placeholder="至少 6 位字符"
                     />
-                    <p className="text-[0.8rem] text-muted-foreground">
-                      密码长度至少为 6 位
-                    </p>
+                    <p className="text-[0.8rem] text-muted-foreground">密码长度至少为 6 位</p>
                   </div>
 
                   <div className="grid gap-3">
@@ -623,9 +581,7 @@ export const Settings = () => {
                       id="confirm_password"
                       type="password"
                       value={passwordData.confirm_password}
-                      onChange={(e) =>
-                        setPasswordData({ ...passwordData, confirm_password: e.target.value })
-                      }
+                      onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
                       required
                       minLength={6}
                       placeholder="再次输入新密码"

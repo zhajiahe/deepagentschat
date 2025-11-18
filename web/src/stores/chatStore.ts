@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ConversationResponse, MessageResponse } from '@/api/aPIDoc';
+import type { ConversationResponse } from '@/api/aPIDoc';
 
 export interface ToolCall {
   id?: string;
@@ -68,9 +68,7 @@ export const useChatStore = create<ChatState>((set) => ({
 
   updateConversation: (threadId, updates) =>
     set((state) => ({
-      conversations: state.conversations.map((conv) =>
-        conv.thread_id === threadId ? { ...conv, ...updates } : conv
-      ),
+      conversations: state.conversations.map((conv) => (conv.thread_id === threadId ? { ...conv, ...updates } : conv)),
       currentConversation:
         state.currentConversation?.thread_id === threadId
           ? { ...state.currentConversation, ...updates }
@@ -80,13 +78,11 @@ export const useChatStore = create<ChatState>((set) => ({
   deleteConversation: (threadId) =>
     set((state) => ({
       conversations: state.conversations.filter((conv) => conv.thread_id !== threadId),
-      currentConversation:
-        state.currentConversation?.thread_id === threadId ? null : state.currentConversation,
+      currentConversation: state.currentConversation?.thread_id === threadId ? null : state.currentConversation,
       messages: state.currentConversation?.thread_id === threadId ? [] : state.messages,
     })),
 
-  setCurrentConversation: (conversation) =>
-    set({ currentConversation: conversation, messages: [] }),
+  setCurrentConversation: (conversation) => set({ currentConversation: conversation, messages: [] }),
 
   setMessages: (messages) => set({ messages }),
 
@@ -97,9 +93,7 @@ export const useChatStore = create<ChatState>((set) => ({
 
   updateMessage: (messageId, content) =>
     set((state) => ({
-      messages: state.messages.map((msg) =>
-        msg.id === messageId ? { ...msg, content, isStreaming: false } : msg
-      ),
+      messages: state.messages.map((msg) => (msg.id === messageId ? { ...msg, content, isStreaming: false } : msg)),
     })),
 
   setIsLoading: (isLoading) => set({ isLoading }),

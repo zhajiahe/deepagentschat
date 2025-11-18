@@ -1,11 +1,11 @@
-import { useState, useRef, KeyboardEvent } from 'react';
-import { SendIcon, StopCircleIcon, RotateCcwIcon } from 'lucide-react';
+import { RotateCcwIcon, SendIcon, StopCircleIcon } from 'lucide-react';
+import { type KeyboardEvent, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useUserSettingsStore } from '@/stores/userSettingsStore';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useUserSettingsStore } from '@/stores/userSettingsStore';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -126,15 +126,13 @@ export const ChatInput = ({ onSend, onStop, onReset, disabled, isSending, showRe
           )}
         </div>
         <div className="mt-2 flex justify-between items-center px-1">
-          <p className="text-xs text-muted-foreground hidden sm:block">
-            按 Enter 发送，Shift + Enter 换行
-          </p>
-          <p className="text-xs text-muted-foreground sm:hidden">
-            Enter 发送
-          </p>
-          <span className={`text-xs transition-colors ${
-            message.length > maxLength * 0.9 ? 'text-destructive font-medium' : 'text-muted-foreground'
-          }`}>
+          <p className="text-xs text-muted-foreground hidden sm:block">按 Enter 发送，Shift + Enter 换行</p>
+          <p className="text-xs text-muted-foreground sm:hidden">Enter 发送</p>
+          <span
+            className={`text-xs transition-colors ${
+              message.length > maxLength * 0.9 ? 'text-destructive font-medium' : 'text-muted-foreground'
+            }`}
+          >
             {message.length}/{maxLength}
           </span>
         </div>

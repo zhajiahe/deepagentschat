@@ -10,7 +10,7 @@
 export const parseBackendDate = (dateString: string): Date => {
   // 如果时间字符串没有时区标识（Z、+、-），自动添加 'Z' 表示 UTC
   if (!dateString.endsWith('Z') && !dateString.includes('+') && !dateString.includes('-', 10)) {
-    return new Date(dateString + 'Z');
+    return new Date(`${dateString}Z`);
   }
   return new Date(dateString);
 };
@@ -23,13 +23,13 @@ export const parseBackendDate = (dateString: string): Date => {
 export const formatTime = (dateString: string): string => {
   try {
     const date = parseBackendDate(dateString);
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return '时间未知';
     }
     return date.toLocaleTimeString('zh-CN', {
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: 'Asia/Shanghai'
+      timeZone: 'Asia/Shanghai',
     });
   } catch (e) {
     console.error('Error formatting time:', dateString, e);
@@ -45,13 +45,13 @@ export const formatTime = (dateString: string): string => {
 export const formatDate = (dateString: string): string => {
   try {
     const date = parseBackendDate(dateString);
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return '日期未知';
     }
     return date.toLocaleDateString('zh-CN', {
       month: 'numeric',
       day: 'numeric',
-      timeZone: 'Asia/Shanghai'
+      timeZone: 'Asia/Shanghai',
     });
   } catch (e) {
     console.error('Error formatting date:', dateString, e);
@@ -67,7 +67,7 @@ export const formatDate = (dateString: string): string => {
 export const formatDateTime = (dateString: string): string => {
   try {
     const date = parseBackendDate(dateString);
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return '时间未知';
     }
     return date.toLocaleString('zh-CN', {
@@ -76,7 +76,7 @@ export const formatDateTime = (dateString: string): string => {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: 'Asia/Shanghai'
+      timeZone: 'Asia/Shanghai',
     });
   } catch (e) {
     console.error('Error formatting datetime:', dateString, e);
@@ -92,7 +92,7 @@ export const formatDateTime = (dateString: string): string => {
 export const getRelativeTime = (dateString: string): string => {
   try {
     const date = parseBackendDate(dateString);
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return '时间未知';
     }
 

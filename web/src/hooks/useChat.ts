@@ -1,17 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import type { ChatRequest, MessageResponse } from '@/api/aPIDoc';
 import { useChatStore } from '@/stores/chatStore';
 import request from '@/utils/request';
-import { ChatRequest, MessageResponse } from '@/api/aPIDoc';
 
 export const useChat = () => {
-  const {
-    currentConversation,
-    messages,
-    addMessage,
-    updateMessage,
-    setIsSending,
-    isSending,
-  } = useChatStore();
+  const { currentConversation, messages, addMessage, updateMessage, setIsSending, isSending } = useChatStore();
 
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const abortControllerRef = useState<{ current: AbortController | null }>({ current: null })[0];
@@ -116,7 +109,7 @@ export const useChat = () => {
                     toolCalls.push(toolCall);
                     // 更新消息的 metadata
                     const currentMessages = useChatStore.getState().messages;
-                    const messageIndex = currentMessages.findIndex(m => m.id === assistantMessageId);
+                    const messageIndex = currentMessages.findIndex((m) => m.id === assistantMessageId);
                     if (messageIndex !== -1) {
                       const updatedMessages = [...currentMessages];
                       updatedMessages[messageIndex] = {
@@ -130,12 +123,12 @@ export const useChat = () => {
                     }
                   } else if (parsed.type === 'tool_end') {
                     // 工具调用结束 - 更新输出结果
-                    const toolCall = toolCalls.find(tc => tc.name === parsed.tool_name);
+                    const toolCall = toolCalls.find((tc) => tc.name === parsed.tool_name);
                     if (toolCall) {
                       toolCall.output = parsed.tool_output;
                       // 更新消息的 metadata
                       const currentMessages = useChatStore.getState().messages;
-                      const messageIndex = currentMessages.findIndex(m => m.id === assistantMessageId);
+                      const messageIndex = currentMessages.findIndex((m) => m.id === assistantMessageId);
                       if (messageIndex !== -1) {
                         const updatedMessages = [...currentMessages];
                         updatedMessages[messageIndex] = {
@@ -174,7 +167,7 @@ export const useChat = () => {
 
         // 等待一小段时间确保后端保存完成
         if (streamDone) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
         // 如果是新会话，通知父组件
@@ -185,9 +178,7 @@ export const useChat = () => {
         // 流式完成后，重新加载消息以获取实际的数据库ID
         const targetThreadId = currentConversation?.thread_id || newThreadId;
         if (targetThreadId) {
-          const messagesResponse = await request.get(
-            `/conversations/${targetThreadId}/messages`
-          );
+          const messagesResponse = await request.get(`/conversations/${targetThreadId}/messages`);
           // 解析 BaseResponse 包装的数据（现在返回 PageResponse 格式）
           if (messagesResponse.data.success && messagesResponse.data.data) {
             const normalizeRole = (role: string): 'user' | 'assistant' | 'system' => {

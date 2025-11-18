@@ -1,10 +1,17 @@
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  EditIcon,
+  MenuIcon,
+  MessageSquareIcon,
+  PlusIcon,
+  TrashIcon,
+  XIcon,
+} from 'lucide-react';
 import { useState } from 'react';
-import { PlusIcon, MessageSquareIcon, TrashIcon, EditIcon, CheckIcon, XIcon, MenuIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
-import { useConversations } from '@/hooks/useConversations';
-import { useChatStore } from '@/stores/chatStore';
-import { ConversationResponse } from '@/api/aPIDoc';
+import type { ConversationResponse } from '@/api/aPIDoc';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -13,18 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
+import { useConversations } from '@/hooks/useConversations';
+import { useChatStore } from '@/stores/chatStore';
 import { formatDate } from '@/utils/date';
 
 export const Sidebar = () => {
-  const {
-    conversations,
-    currentConversation,
-    selectConversation,
-    updateConversationTitle,
-    removeConversation,
-  } = useConversations();
+  const { conversations, currentConversation, selectConversation, updateConversationTitle, removeConversation } =
+    useConversations();
   const { setCurrentConversation, setMessages } = useChatStore();
   const { toast } = useToast();
 
@@ -89,7 +94,6 @@ export const Sidebar = () => {
     }
   };
 
-
   return (
     <>
       {/* Mobile Toggle Button */}
@@ -104,21 +108,20 @@ export const Sidebar = () => {
 
       {/* Overlay for mobile */}
       {isMobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsMobileOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileOpen(false)} />
       )}
 
       {/* Sidebar */}
-      <div className={`
+      <div
+        className={`
         fixed md:relative
         border-r bg-card flex flex-col h-screen
         z-40
         transition-all duration-300 ease-in-out
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         ${isCollapsed ? 'md:w-16' : 'w-72 sm:w-80 md:w-64 lg:w-72 xl:w-80'}
-      `}>
+      `}
+      >
         {/* Desktop Collapse Toggle Button */}
         <Button
           variant="ghost"
@@ -146,130 +149,122 @@ export const Sidebar = () => {
           </Button>
         </div>
 
-      {/* Conversation List */}
-      <ScrollArea className="flex-1">
-        {conversations.map((conversation) => (
-          <div
-            key={conversation.thread_id}
-            className={`group relative px-3 py-3 cursor-pointer hover:bg-accent transition-all duration-200 border-l-4 ${
-              currentConversation?.thread_id === conversation.thread_id
-                ? 'bg-accent border-l-emerald-500'
-                : 'border-l-transparent'
-            }`}
-            onClick={() => {
-              selectConversation(conversation);
-              setIsMobileOpen(false);
-            }}
-          >
-            {editingId === conversation.thread_id && !isCollapsed ? (
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <Input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="flex-1 h-8 text-sm"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSaveEdit(conversation.thread_id);
-                    } else if (e.key === 'Escape') {
-                      handleCancelEdit();
-                    }
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleSaveEdit(conversation.thread_id)}
-                  className="h-8 w-8"
-                >
-                  <CheckIcon size={14} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleCancelEdit}
-                  className="h-8 w-8"
-                >
-                  <XIcon size={14} />
-                </Button>
-              </div>
-            ) : (
-              <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center' : ''}`}>
-                <MessageSquareIcon size={16} className={`flex-shrink-0 text-muted-foreground ${isCollapsed ? 'mx-auto' : ''}`} />
-                {!isCollapsed && (
-                  <>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{conversation.title}</div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="truncate">
-                          {conversation.message_count ? `${conversation.message_count} 条消息` : '暂无消息'}
-                        </span>
-                        <span>·</span>
-                        <span className="flex-shrink-0">
-                          {formatDate(conversation.updated_at)}
-                        </span>
+        {/* Conversation List */}
+        <ScrollArea className="flex-1">
+          {conversations.map((conversation) => (
+            <div
+              key={conversation.thread_id}
+              className={`group relative px-3 py-3 cursor-pointer hover:bg-accent transition-all duration-200 border-l-4 ${
+                currentConversation?.thread_id === conversation.thread_id
+                  ? 'bg-accent border-l-emerald-500'
+                  : 'border-l-transparent'
+              }`}
+              onClick={() => {
+                selectConversation(conversation);
+                setIsMobileOpen(false);
+              }}
+            >
+              {editingId === conversation.thread_id && !isCollapsed ? (
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="flex-1 h-8 text-sm"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSaveEdit(conversation.thread_id);
+                      } else if (e.key === 'Escape') {
+                        handleCancelEdit();
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleSaveEdit(conversation.thread_id)}
+                    className="h-8 w-8"
+                  >
+                    <CheckIcon size={14} />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={handleCancelEdit} className="h-8 w-8">
+                    <XIcon size={14} />
+                  </Button>
+                </div>
+              ) : (
+                <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center' : ''}`}>
+                  <MessageSquareIcon
+                    size={16}
+                    className={`flex-shrink-0 text-muted-foreground ${isCollapsed ? 'mx-auto' : ''}`}
+                  />
+                  {!isCollapsed && (
+                    <>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{conversation.title}</div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="truncate">
+                            {conversation.message_count ? `${conversation.message_count} 条消息` : '暂无消息'}
+                          </span>
+                          <span>·</span>
+                          <span className="flex-shrink-0">{formatDate(conversation.updated_at)}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStartEdit(conversation);
-                        }}
-                        className="h-6 w-6"
-                        title="重命名"
-                      >
-                        <EditIcon size={12} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => handleDelete(conversation.thread_id, e)}
-                        className="h-6 w-6 text-destructive hover:text-destructive"
-                        title="删除"
-                      >
-                        <TrashIcon size={12} />
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </ScrollArea>
+                      <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(conversation);
+                          }}
+                          className="h-6 w-6"
+                          title="重命名"
+                        >
+                          <EditIcon size={12} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => handleDelete(conversation.thread_id, e)}
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                          title="删除"
+                        >
+                          <TrashIcon size={12} />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </ScrollArea>
 
-      {/* Footer */}
-      {!isCollapsed && (
-        <div className="p-4 border-t">
-          <div className="text-xs text-muted-foreground">
-            共 {conversations.length} 个对话
+        {/* Footer */}
+        {!isCollapsed && (
+          <div className="p-4 border-t">
+            <div className="text-xs text-muted-foreground">共 {conversations.length} 个对话</div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Delete Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>删除对话</DialogTitle>
-            <DialogDescription>
-              确定要删除这个对话吗？此操作不可恢复。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              取消
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              确定删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Delete Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>删除对话</DialogTitle>
+              <DialogDescription>确定要删除这个对话吗？此操作不可恢复。</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                取消
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete}>
+                确定删除
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );

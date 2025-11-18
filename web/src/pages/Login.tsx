@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
-import request from '@/utils/request';
-import { BaseResponseToken } from '@/api/aPIDoc';
+import { Link, useNavigate } from 'react-router-dom';
+import type { BaseResponseToken } from '@/api/aPIDoc';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
+import request from '@/utils/request';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -73,9 +73,7 @@ export const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">登录</CardTitle>
-          <CardDescription className="text-center">
-            登录到 AI Agent
-          </CardDescription>
+          <CardDescription className="text-center">登录到 AI Agent</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -105,11 +103,7 @@ export const Login = () => {
               />
             </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '登录中...' : '登录'}
             </Button>
 

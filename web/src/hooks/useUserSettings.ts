@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import request from '@/utils/request';
-import { UserSettingsResponse } from '@/api/aPIDoc';
 
 interface UserSettings {
   show_tool_calls: boolean;
@@ -14,7 +13,7 @@ export const useUserSettings = () => {
 
   useEffect(() => {
     loadSettings();
-  }, []);
+  }, [loadSettings]);
 
   const loadSettings = async () => {
     try {

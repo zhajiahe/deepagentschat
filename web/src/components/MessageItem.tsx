@@ -1,9 +1,8 @@
-import { BotIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Message } from '@/stores/chatStore';
-import { UserMessage } from './UserMessage';
+import type { Message } from '@/stores/chatStore';
 import { AIMessage } from './AIMessage';
 import { ToolCallMessage } from './ToolCallMessage';
+import { UserMessage } from './UserMessage';
 
 interface MessageItemProps {
   message: Message & {
@@ -30,9 +29,7 @@ export const MessageItem = ({ message, onCopy, copiedId }: MessageItemProps) => 
     return (
       <div className="flex gap-4 items-start animate-slide-up">
         <Avatar className="flex-shrink-0 w-10 h-10 ring-2 ring-primary/20 shadow-md">
-          <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600">
-            🔧
-          </AvatarFallback>
+          <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600">🔧</AvatarFallback>
         </Avatar>
 
         <div className="flex-1 max-w-[90%]">

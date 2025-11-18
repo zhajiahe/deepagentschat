@@ -1,17 +1,11 @@
+import { LogOutIcon, MoonIcon, SearchIcon, SettingsIcon, SunIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Sidebar } from '@/components/Sidebar';
-import { MessageList } from '@/components/MessageList';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChatInput } from '@/components/ChatInput';
+import { MessageList } from '@/components/MessageList';
 import { SearchDialog } from '@/components/SearchDialog';
-import { useAuthStore } from '@/stores/authStore';
-import { useThemeStore } from '@/stores/themeStore';
-import { useUserSettingsStore } from '@/stores/userSettingsStore';
-import { useChat } from '@/hooks/useChat';
-import { useConversations } from '@/hooks/useConversations';
-import { LogOutIcon, SettingsIcon, SearchIcon, MoonIcon, SunIcon } from 'lucide-react';
+import { Sidebar } from '@/components/Sidebar';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { useChat } from '@/hooks/useChat';
+import { useConversations } from '@/hooks/useConversations';
+import { useAuthStore } from '@/stores/authStore';
+import { useThemeStore } from '@/stores/themeStore';
+import { useUserSettingsStore } from '@/stores/userSettingsStore';
 
 export const Chat = () => {
   const navigate = useNavigate();
@@ -28,7 +28,8 @@ export const Chat = () => {
   const { theme, toggleTheme } = useThemeStore();
   const { settings, loadSettings } = useUserSettingsStore();
   const { messages, isSending, sendMessageStream, stopStreaming } = useChat();
-  const { conversations, selectConversation, currentConversation, resetConversation, loadConversations } = useConversations();
+  const { conversations, selectConversation, currentConversation, resetConversation, loadConversations } =
+    useConversations();
   const { toast } = useToast();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -125,12 +126,7 @@ export const Chat = () => {
               欢迎，{user?.nickname || user?.username}
             </span>
             <Separator orientation="vertical" className="h-6 hidden lg:block mr-2" />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsSearchOpen(true)}
-              title="搜索 (Ctrl+K)"
-            >
+            <Button variant="ghost" size="icon" onClick={() => setIsSearchOpen(true)} title="搜索 (Ctrl+K)">
               <SearchIcon size={16} />
             </Button>
             <Button
@@ -146,12 +142,7 @@ export const Chat = () => {
                 <SettingsIcon size={16} />
               </Link>
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              title="退出登录"
-            >
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="退出登录">
               <LogOutIcon size={16} />
             </Button>
           </div>
@@ -183,9 +174,7 @@ export const Chat = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>重置对话</DialogTitle>
-            <DialogDescription>
-              确定要重置当前对话吗？所有消息将被清空，此操作不可恢复。
-            </DialogDescription>
+            <DialogDescription>确定要重置当前对话吗？所有消息将被清空，此操作不可恢复。</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResetDialogOpen(false)}>

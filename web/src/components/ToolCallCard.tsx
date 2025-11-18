@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { ChevronDownIcon, ChevronRightIcon, WrenchIcon } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ToolCall } from '@/stores/chatStore';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import type { ToolCall } from '@/stores/chatStore';
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
@@ -35,17 +35,8 @@ export const ToolCallCard = ({ toolCall }: ToolCallCardProps) => {
               工具调用: {toolCall.name}
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="h-6 w-6 p-0"
-          >
-            {isExpanded ? (
-              <ChevronDownIcon size={16} />
-            ) : (
-              <ChevronRightIcon size={16} />
-            )}
+          <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-6 w-6 p-0">
+            {isExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
           </Button>
         </div>
       </CardHeader>
@@ -55,25 +46,17 @@ export const ToolCallCard = ({ toolCall }: ToolCallCardProps) => {
           {/* 输入参数 */}
           {args && Object.keys(args).length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-muted-foreground mb-1">
-                Parameters:
-              </div>
-              <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                {JSON.stringify(args, null, 2)}
-              </pre>
+              <div className="text-xs font-semibold text-muted-foreground mb-1">Parameters:</div>
+              <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{JSON.stringify(args, null, 2)}</pre>
             </div>
           )}
 
           {/* 输出结果 */}
           {toolCall.output && (
             <div>
-              <div className="text-xs font-semibold text-muted-foreground mb-1">
-                Tool Output:
-              </div>
+              <div className="text-xs font-semibold text-muted-foreground mb-1">Tool Output:</div>
               <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                {typeof toolCall.output === 'string'
-                  ? toolCall.output
-                  : JSON.stringify(toolCall.output, null, 2)}
+                {typeof toolCall.output === 'string' ? toolCall.output : JSON.stringify(toolCall.output, null, 2)}
               </pre>
             </div>
           )}

@@ -25,9 +25,7 @@ export const ToolCallMessage = ({ toolCall, messageId }: ToolCallMessageProps) =
           <span className="text-lg">🔧</span>
           <span>调用工具: {toolCall.name}</span>
         </div>
-        <span className="text-sm">
-          {isExpanded ? '▼' : '▶'}
-        </span>
+        <span className="text-sm">{isExpanded ? '▼' : '▶'}</span>
       </button>
 
       {/* 简洁显示输入参数 */}
@@ -51,9 +49,7 @@ export const ToolCallMessage = ({ toolCall, messageId }: ToolCallMessageProps) =
             <div>
               <div className="text-sm text-muted-foreground mb-1">输出结果：</div>
               <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-40">
-                {typeof toolCall.output === 'string'
-                  ? toolCall.output
-                  : JSON.stringify(toolCall.output, null, 2)}
+                {typeof toolCall.output === 'string' ? toolCall.output : JSON.stringify(toolCall.output, null, 2)}
               </pre>
             </div>
           )}

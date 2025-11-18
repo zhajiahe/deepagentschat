@@ -1,7 +1,7 @@
-import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { ClockIcon, FileTextIcon, MessageSquareIcon } from 'lucide-react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import type { UserStatsResponse } from '@/api/aPIDoc';
 import request from '@/utils/request';
-import { UserStatsResponse } from '@/api/aPIDoc';
-import { MessageSquareIcon, FileTextIcon, ClockIcon } from 'lucide-react';
 
 export interface UserStatsRef {
   refresh: () => Promise<void>;
@@ -28,7 +28,7 @@ export const UserStats = forwardRef<UserStatsRef>((_, ref) => {
 
   useEffect(() => {
     loadStats();
-  }, []);
+  }, [loadStats]);
 
   // 暴露刷新方法给父组件
   useImperativeHandle(ref, () => ({
@@ -56,9 +56,7 @@ export const UserStats = forwardRef<UserStatsRef>((_, ref) => {
             <MessageSquareIcon size={24} className="text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {stats.total_conversations}
-            </div>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.total_conversations}</div>
             <div className="text-sm text-muted-foreground">总会话数</div>
           </div>
         </div>
@@ -68,9 +66,7 @@ export const UserStats = forwardRef<UserStatsRef>((_, ref) => {
             <FileTextIcon size={24} className="text-green-600 dark:text-green-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {stats.total_messages}
-            </div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.total_messages}</div>
             <div className="text-sm text-muted-foreground">总消息数</div>
           </div>
         </div>
@@ -98,16 +94,10 @@ export const UserStats = forwardRef<UserStatsRef>((_, ref) => {
                 className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
               >
                 <div className="flex-1 truncate">
-                  <div className="text-sm font-medium text-foreground truncate">
-                    {conv.title || '未命名会话'}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {conv.message_count || 0} 条消息
-                  </div>
+                  <div className="text-sm font-medium text-foreground truncate">{conv.title || '未命名会话'}</div>
+                  <div className="text-xs text-muted-foreground">{conv.message_count || 0} 条消息</div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {new Date(conv.updated_at).toLocaleDateString()}
-                </div>
+                <div className="text-xs text-muted-foreground">{new Date(conv.updated_at).toLocaleDateString()}</div>
               </div>
             ))}
           </div>

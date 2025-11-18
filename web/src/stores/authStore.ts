@@ -1,6 +1,6 @@
 import { create } from 'zustand';
+import type { UserResponse } from '@/api/aPIDoc';
 import { storage } from '@/utils/storage';
-import { UserResponse } from '@/api/aPIDoc';
 
 interface AuthState {
   user: UserResponse | null;

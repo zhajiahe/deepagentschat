@@ -1,10 +1,10 @@
+import { BotIcon, CheckIcon, CopyIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { BotIcon, CopyIcon, CheckIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import remarkGfm from 'remark-gfm';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Message } from '@/stores/chatStore';
+import { Button } from '@/components/ui/button';
+import type { Message } from '@/stores/chatStore';
 import { formatTime } from '@/utils/date';
 
 interface AIMessageProps {
@@ -25,17 +25,23 @@ export const AIMessage = ({ message, onCopy, copiedId }: AIMessageProps) => {
       <div className="flex-1 max-w-[90%]">
         <div className="relative rounded-2xl px-4 py-3 shadow-md transition-all duration-200 hover:shadow-lg bg-muted/50 dark:bg-muted text-foreground border border-border">
           <div className="prose prose-base max-w-none dark:prose-invert prose-pre:bg-gray-900 prose-pre:text-gray-100 w-full">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeHighlight]}
-            >
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
               {message.content}
             </ReactMarkdown>
             {message.isStreaming && (
               <span className="inline-flex gap-1 ml-2 items-center">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span
+                  className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
+                  className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <span
+                  className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                  style={{ animationDelay: '300ms' }}
+                />
               </span>
             )}
           </div>
