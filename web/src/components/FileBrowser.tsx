@@ -2,7 +2,14 @@ import { useState, useEffect } from 'react';
 import { X, Upload, Download, Trash2, RefreshCw, File, FolderOpen, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import request from '@/utils/request';
 
@@ -22,6 +29,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewFile, setPreviewFile] = useState<{ name: string; content: string } | null>(null);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const loadFiles = async () => {
@@ -156,7 +164,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   };
 
   const handleClearAll = async () => {
-
+    setClearDialogOpen(false);
     try {
       const response = await request.delete('/files');
       if (response.data.success) {
@@ -220,7 +228,12 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           刷新
         </Button>
-        <Button variant="outline" size="sm" onClick={handleClearAll} disabled={files.length === 0}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setClearDialogOpen(true)}
+          disabled={files.length === 0}
+        >
           <Trash2 className="h-4 w-4 mr-2" />
           清空
         </Button>
@@ -317,6 +330,26 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
               {previewFile?.content}
             </pre>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear All Confirmation Dialog */}
+      <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认清空</DialogTitle>
+            <DialogDescription>
+              确定要清空所有文件吗？此操作不可恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearDialogOpen(false)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleClearAll}>
+              确定清空
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
