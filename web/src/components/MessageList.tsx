@@ -35,7 +35,7 @@ export const MessageList = ({ messages }: MessageListProps) => {
 
   // 将消息展开，将工具调用作为独立的消息项
   const expandedMessages: ExpandedMessage[] = [];
-  messages.forEach((message, messageIndex) => {
+  messages.forEach((message) => {
     // 如果是 AI 消息且有工具调用，先显示工具调用
     if (
       (message.role === 'assistant' || message.role === 'ai') &&
@@ -47,8 +47,7 @@ export const MessageList = ({ messages }: MessageListProps) => {
       message.metadata.tool_calls.forEach((toolCall, index) => {
         expandedMessages.push({
           ...message,
-          // 使用消息索引和工具调用索引生成唯一 ID，确保不同消息的工具调用不会冲突
-          id: messageIndex * 10000 + message.id * 100 + index,
+          id: message.id * 1000 + index, // 生成唯一 ID
           isToolCall: true,
           toolCall: toolCall,
         });
