@@ -1,5 +1,10 @@
 # 从零到一：构建现代化的 FastAPI + LangGraph 对话系统
 
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/zhajiahe/deepagentschat/releases/tag/v0.4.0)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
+
 > 一个集成了用户认证、LangGraph 对话系统和现代化前端的 FastAPI 后端模板项目
 
 ## 📖 项目简介
@@ -11,6 +16,7 @@
 - 🚀 **现代化后端**：FastAPI + LangGraph + SQLAlchemy
 - 🔐 **用户认证**：JWT 令牌、用户注册/登录、权限管理
 - 💬 **对话系统**：流式/非流式对话、会话管理、状态持久化
+- 📁 **文件管理**：文件浏览器、上传/下载、用户隔离
 - 🎨 **现代化前端**：React + TypeScript + shadcn/ui 组件库
 - 🧪 **测试覆盖**：后端集成测试、前端组件测试
 - 🔍 **代码质量**：自动格式化、类型检查、Git 钩子
@@ -207,6 +213,25 @@ pnpm lint         # 代码检查
 - 修改 `app/core/config.py` 添加新配置
 - 更新 `web/tailwind.config.ts` 自定义样式
 
+## 📝 更新日志
+
+### [0.4.0] - 2025-11-19
+
+#### ✨ 新增功能
+- 添加文件浏览器功能（右侧可折叠面板）
+  - 文件上传、下载、删除、预览
+  - 清空所有文件（带确认对话框）
+  - 实时文件列表刷新
+- 将登出和设置按钮移至侧边栏底部
+- 支持展开/折叠状态下的不同布局
+
+#### 🐛 Bug 修复
+- 修复 Agent 和文件浏览器使用不同用户目录的问题
+- 修复工具调用信息包含历史记录的问题
+- 修复对话消息渲染问题
+
+查看完整更新日志：[CHANGELOG.md](./CHANGELOG.md)
+
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
@@ -219,4 +244,4 @@ MIT License
 
 **Happy Coding! 🚀**
 
-项目地址：[https://github.com/zhajiahe/fastapi-template](https://github.com/zhajiahe/fastapi-template)
+项目地址：[https://github.com/zhajiahe/deepagentschat](https://github.com/zhajiahe/deepagentschat)
