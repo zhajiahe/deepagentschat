@@ -139,6 +139,20 @@ export const Sidebar = ({ onSearchOpen }: SidebarProps) => {
         ${isCollapsed ? 'md:w-16' : 'w-64'}
       `}
       >
+        {/* Logo */}
+        <div className={`p-4 border-b border-border dark:border-grokborder ${isCollapsed ? 'flex justify-center' : ''}`}>
+          {isCollapsed ? (
+            <img src="/logo.svg" alt="DeepAgents" className="h-8 w-8" />
+          ) : (
+            <div className="flex items-center gap-3">
+              <img src="/logo.svg" alt="DeepAgents" className="h-8 w-8" />
+              <div>
+                <h1 className="text-lg font-bold text-foreground dark:text-groktext">DeepAgents</h1>
+                <p className="text-xs text-muted-foreground dark:text-groksub">AI Chat Assistant</p>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Header - Grok 新对话按钮和搜索 */}
         <div className="p-3 space-y-2">

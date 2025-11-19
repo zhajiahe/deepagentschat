@@ -1,0 +1,11 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景六边形 -->
+  <path d="M32 4L58 19V45L32 60L6 45V19L32 4Z" fill="#111827" stroke="#10B981" stroke-width="2"/>
+
+  <!-- 内部抽象对话/连接 -->
+  <path d="M22 22H34C36.2 22 38 23.8 38 26V32H26C23.8 32 22 30.2 22 28V22Z" fill="#10B981"/>
+  <path d="M42 42H30C27.8 42 26 40.2 26 38V32H38C40.2 32 42 33.8 42 36V42Z" fill="#34D399"/>
+
+  <!-- 连接点 -->
+  <circle cx="32" cy="32" r="3" fill="white"/>
+</svg>
