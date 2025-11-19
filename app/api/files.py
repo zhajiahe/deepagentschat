@@ -278,3 +278,46 @@ async def delete_file(filename: str, current_user: CurrentUser):
     except Exception as e:
         logger.error(f"Failed to delete file: {e}")
         raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}") from e
+
+
+@router.delete("")
+async def clear_all_files(current_user: CurrentUser):
+    """
+    清空用户工作目录中的所有文件
+
+    Args:
+        current_user: 当前登录用户
+
+    Returns:
+        dict: 清空结果
+    """
+    try:
+        backend = get_user_backend(current_user.id)
+
+        # 列出所有文件
+        result_before = backend.execute("ls -1")
+        files_before = result_before.output.strip().split("\n") if result_before.output.strip() else []
+        file_count = len([f for f in files_before if f and f != "(no output)"])
+
+        # 删除所有文件（不删除目录）
+        result = backend.execute("find . -type f -delete")
+
+        if result.exit_code != 0:
+            raise HTTPException(status_code=500, detail=f"清空文件失败: {result.output}")
+
+        logger.info(f"User {current_user.id} cleared all files ({file_count} files deleted)")
+
+        return BaseResponse(
+            success=True,
+            code=200,
+            msg="清空文件成功",
+            data={
+                "message": f"已清空工作目录，删除了 {file_count} 个文件",
+                "deleted_count": file_count,
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to clear files: {e}")
+        raise HTTPException(status_code=500, detail=f"清空文件失败: {str(e)}") from e
