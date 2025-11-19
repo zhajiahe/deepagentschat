@@ -1,8 +1,9 @@
-import { LogOutIcon, MoonIcon, SettingsIcon, SunIcon } from 'lucide-react';
+import { FolderOpen, LogOutIcon, MoonIcon, SettingsIcon, SunIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChatInput } from '@/components/ChatInput';
 import { EmptyState } from '@/components/EmptyState';
+import { FileBrowser } from '@/components/FileBrowser';
 import { MessageList } from '@/components/MessageList';
 import { SearchDialog } from '@/components/SearchDialog';
 import { Sidebar } from '@/components/Sidebar';
@@ -35,6 +36,7 @@ export const Chat = () => {
   const { toast } = useToast();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false);
 
   // 处理新会话创建
   const handleNewConversation = async (threadId: string) => {
@@ -130,6 +132,15 @@ export const Chat = () => {
             <Button
               variant="ghost"
               size="icon"
+              onClick={() => setIsFileBrowserOpen(!isFileBrowserOpen)}
+              title="文件浏览器"
+              className="text-muted-foreground dark:text-groksub hover:text-foreground dark:hover:text-groktext"
+            >
+              <FolderOpen size={18} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={toggleTheme}
               title={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
               className="text-muted-foreground dark:text-groksub hover:text-foreground dark:hover:text-groktext"
@@ -200,6 +211,9 @@ export const Chat = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* File Browser */}
+      <FileBrowser isOpen={isFileBrowserOpen} onClose={() => setIsFileBrowserOpen(false)} />
     </div>
   );
 };
