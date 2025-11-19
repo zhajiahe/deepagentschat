@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/public/readme.svg" alt="DeepAgentsChat Logo" width="300">
+  <img src="web/public/readme.svg" alt="DeepAgentsChat Logo" width="500">
 </p>
 
 <p align="center">
@@ -105,7 +105,7 @@ uv run python scripts/create_superuser.py
 ### 5. 启动服务
 
 ```bash
-# 启动后端（另一个终端）
+# 启动后端(前端是静态页面，构建成功后无需启动，已挂载到fastapi)
 make dev
 ```
 
