@@ -282,7 +282,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
             api_key=api_key if isinstance(api_key, str) else None,
             base_url=base_url if isinstance(base_url, str) else None,
             max_tokens=max_tokens if isinstance(max_tokens, int) else 4096,
-            user_id=int(current_user.id),
+            user_id=current_user.id,  # 使用 UUID，不转换为 int
         )
 
         # 创建任务并注册

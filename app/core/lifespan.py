@@ -96,7 +96,7 @@ async def get_cached_graph(
     api_key: str | None = None,
     base_url: str | None = None,
     max_tokens: int = 4096,
-    user_id: int | None = None,
+    user_id: Any | None = None,
 ) -> Any:
     """
     获取缓存的 LangGraph 图（根据用户配置）
@@ -108,7 +108,7 @@ async def get_cached_graph(
         api_key: API 密钥
         base_url: API 基础 URL
         max_tokens: 最大 token 数
-        user_id: 用户 ID，用于创建独立的工作目录
+        user_id: 用户 ID（UUID），用于创建独立的工作目录
 
     Returns:
         CompiledGraph: 编译后的图对象

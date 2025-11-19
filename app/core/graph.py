@@ -4,6 +4,8 @@ LangGraph 图定义
 定义对话流程的图结构和节点
 """
 
+from typing import Any
+
 from app.agent import get_agent
 
 
@@ -13,7 +15,7 @@ async def create_graph(
     api_key: str | None = None,
     base_url: str | None = None,
     max_tokens: int = 4096,
-    user_id: int | None = None,
+    user_id: Any | None = None,
 ):
     """
     创建 LangGraph 对话流程图
@@ -26,7 +28,7 @@ async def create_graph(
         api_key: 可选的 API 密钥
         base_url: 可选的 API 基础 URL
         max_tokens: 可选的最大 token 数
-        user_id: 用户 ID，用于创建独立的工作目录
+        user_id: 用户 ID（UUID），用于创建独立的工作目录
     Returns:
         Runnable: 可运行的 Agent 图
     """
