@@ -203,9 +203,19 @@ async def save_assistant_message(
         # 提取工具调用信息
         meta_data = dict(last_message.additional_kwargs) if last_message.additional_kwargs else {}
 
-        # 从消息历史中查找工具调用和工具消息
+        # 只提取当前这轮对话的工具调用（从最后一个 HumanMessage 之后的消息）
         tool_calls = []
-        for i, msg in enumerate(messages):
+        # 找到最后一个 HumanMessage 的索引
+        last_human_index = -1
+        for i in range(len(messages) - 1, -1, -1):
+            if hasattr(messages[i], "type") and messages[i].type == "human":
+                last_human_index = i
+                break
+
+        # 只处理最后一个 HumanMessage 之后的消息
+        start_index = last_human_index + 1 if last_human_index >= 0 else 0
+        for i in range(start_index, len(messages)):
+            msg = messages[i]
             # 检查是否是 AIMessage 且包含 tool_calls
             if hasattr(msg, "tool_calls") and msg.tool_calls:
                 for tool_call in msg.tool_calls:
