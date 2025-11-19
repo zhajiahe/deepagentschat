@@ -133,8 +133,8 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     }
   };
 
-  const handleDelete = async (filename: string) => {
-    if (!confirm(`确定要删除文件 ${filename} 吗？`)) return;
+  const handleDelete = async (filename: string, event?: React.MouseEvent) => {
+    if (event) event.stopPropagation();
 
     try {
       const response = await request.delete(`/files/${filename}`);
@@ -156,7 +156,6 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   };
 
   const handleClearAll = async () => {
-    if (!confirm('确定要清空所有文件吗？此操作不可恢复！')) return;
 
     try {
       const response = await request.delete('/files');
@@ -262,7 +261,10 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => handlePreview(file.filename)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePreview(file.filename);
+                      }}
                       title="预览"
                     >
                       <Eye className="h-3.5 w-3.5" />
@@ -271,7 +273,10 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => handleDownload(file.filename)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownload(file.filename);
+                      }}
                       title="下载"
                     >
                       <Download className="h-3.5 w-3.5" />
@@ -280,7 +285,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(file.filename)}
+                      onClick={(e) => handleDelete(file.filename, e)}
                       title="删除"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

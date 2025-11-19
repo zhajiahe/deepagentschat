@@ -119,7 +119,7 @@ export const Chat = () => {
       <Sidebar onSearchOpen={() => setIsSearchOpen(true)} />
 
       {/* Main Chat Area - Grok 右侧聊天区 */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${isFileBrowserOpen ? 'mr-80' : ''}`}>
         {/* Header - 简化的顶部栏 */}
         <div className="h-14 flex items-center justify-between px-4 sm:px-6 bg-card dark:bg-grokbg">
           <div className="flex items-center gap-2 ml-12 md:ml-0">
