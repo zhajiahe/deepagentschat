@@ -50,8 +50,8 @@ export const Sidebar = ({ onSearchOpen }: SidebarProps) => {
   const handleCreateConversation = () => {
     // 不再直接创建空会话，而是清空当前选择，让用户开始新对话
     // 当用户发送第一条消息时，系统会自动创建会话
-    setCurrentConversation(null);
     setMessages([]);
+    setCurrentConversation(null);
   };
 
   const handleStartEdit = (conversation: ConversationResponse) => {

@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useChat } from '@/hooks/useChat';
 import { useConversations } from '@/hooks/useConversations';
 import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/stores/chatStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useUserSettingsStore } from '@/stores/userSettingsStore';
 
@@ -39,10 +40,13 @@ export const Chat = () => {
   const handleNewConversation = async (threadId: string) => {
     // 重新加载会话列表以获取新创建的会话
     await loadConversations();
-    // 选择新创建的会话
-    const conversation = conversations.find((c) => c.thread_id === threadId);
+    // 只更新当前会话，不重新加载消息（消息已经在本地了）
+    // 从 store 中获取最新的会话列表
+    const latestConversations = useChatStore.getState().conversations;
+    const conversation = latestConversations.find((c) => c.thread_id === threadId);
     if (conversation) {
-      await selectConversation(conversation);
+      // 使用 useChatStore 直接设置当前会话，不触发消息加载
+      useChatStore.getState().setCurrentConversation(conversation);
     }
   };
 

@@ -60,10 +60,11 @@ export const useConversations = () => {
     async (conversation: ConversationResponse) => {
       try {
         setIsLoading(true);
-        setCurrentConversation(conversation);
 
         // 加载会话消息
-        const response = await request.get(`/conversations/${conversation.thread_id}/messages`);
+        const response = await request.get(`/conversations/${conversation.thread_id}/messages`, {
+          params: { page_size: 1000 }, // 设置足够大的page_size以获取所有消息
+        });
         // 解析 BaseResponse 包装的数据（现在返回 PageResponse 格式）
         if (response.data.success && response.data.data) {
           // 将 MessageResponse 转换为 Message 类型，并按创建时间排序（如果时间相同，则按ID排序）
@@ -88,7 +89,10 @@ export const useConversations = () => {
               // 如果时间相同，按ID排序（确保顺序稳定）
               return timeDiff !== 0 ? timeDiff : a.id - b.id;
             });
+
+          // 先设置消息，再设置当前会话，避免消息闪烁
           setMessages(messages);
+          setCurrentConversation(conversation);
         }
       } catch (error) {
         console.error('Failed to load messages:', error);

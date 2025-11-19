@@ -82,7 +82,7 @@ export const useChatStore = create<ChatState>((set) => ({
       messages: state.currentConversation?.thread_id === threadId ? [] : state.messages,
     })),
 
-  setCurrentConversation: (conversation) => set({ currentConversation: conversation, messages: [] }),
+  setCurrentConversation: (conversation) => set({ currentConversation: conversation }),
 
   setMessages: (messages) => set({ messages }),
 

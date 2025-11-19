@@ -178,7 +178,9 @@ export const useChat = () => {
         // 流式完成后，重新加载消息以获取实际的数据库ID
         const targetThreadId = currentConversation?.thread_id || newThreadId;
         if (targetThreadId) {
-          const messagesResponse = await request.get(`/conversations/${targetThreadId}/messages`);
+          const messagesResponse = await request.get(`/conversations/${targetThreadId}/messages`, {
+            params: { page_size: 1000 }, // 设置足够大的page_size以获取所有消息
+          });
           // 解析 BaseResponse 包装的数据（现在返回 PageResponse 格式）
           if (messagesResponse.data.success && messagesResponse.data.data) {
             const normalizeRole = (role: string): 'user' | 'assistant' | 'system' => {
@@ -259,7 +261,9 @@ export const useChat = () => {
 
           // 重新加载消息以获取实际的数据库ID
           if (data.thread_id) {
-            const messagesResponse = await request.get(`/conversations/${data.thread_id}/messages`);
+            const messagesResponse = await request.get(`/conversations/${data.thread_id}/messages`, {
+              params: { page_size: 1000 }, // 设置足够大的page_size以获取所有消息
+            });
             if (messagesResponse.data.success && messagesResponse.data.data) {
               const normalizeRole = (role: string): 'user' | 'assistant' | 'system' => {
                 if (role === 'ai' || role === 'assistant') return 'assistant';

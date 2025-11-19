@@ -397,7 +397,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                 # 处理 LLM token 流
                 if event_type == "on_chat_model_stream":
                     chunk_data = event.get("data", {})
-                    if "chunk" in chunk_data:
+                    if chunk_data is not None and "chunk" in chunk_data:
                         chunk_obj = chunk_data["chunk"]
                         if hasattr(chunk_obj, "content") and chunk_obj.content:
                             chunk_text = chunk_obj.content
@@ -422,7 +422,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                 # 收集最终消息用于保存
                 elif event_type == "on_chain_end":
                     output = event.get("data", {}).get("output", {})
-                    if "messages" in output:
+                    if output is not None and "messages" in output:
                         messages = output["messages"]
                         if messages:
                             all_messages = messages
@@ -437,7 +437,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
             if not all_messages:
                 try:
                     state = await compiled_graph.aget_state(config)
-                    if state and state.values and "messages" in state.values:
+                    if state and state.values is not None and "messages" in state.values:
                         all_messages = state.values["messages"]
                 except Exception as e:
                     logger.warning(f"Failed to get state for complete messages: {e}")
