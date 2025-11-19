@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="web/public/readme.svg" alt="DeepAgentsChat Logo" width="300">
+</p>
 # 从零到一：构建现代化的 FastAPI + LangGraph 对话系统
 
 [![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/zhajiahe/deepagentschat/releases/tag/v0.4.0)
