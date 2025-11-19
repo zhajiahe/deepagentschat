@@ -107,7 +107,7 @@ export const useChat = () => {
                     };
                     toolCallsMap.set(toolCallId, toolCall);
                     toolCalls.push(toolCall);
-                    // 更新消息的 metadata
+                    // 更新消息的 metadata（深拷贝 toolCalls）
                     const currentMessages = useChatStore.getState().messages;
                     const messageIndex = currentMessages.findIndex((m) => m.id === assistantMessageId);
                     if (messageIndex !== -1) {
@@ -116,7 +116,7 @@ export const useChat = () => {
                         ...updatedMessages[messageIndex],
                         metadata: {
                           ...updatedMessages[messageIndex].metadata,
-                          tool_calls: [...toolCalls],
+                          tool_calls: toolCalls.map((tc) => ({ ...tc })), // 深拷贝
                         },
                       };
                       useChatStore.getState().setMessages(updatedMessages);
@@ -126,7 +126,7 @@ export const useChat = () => {
                     const toolCall = toolCalls.find((tc) => tc.name === parsed.tool_name);
                     if (toolCall) {
                       toolCall.output = parsed.tool_output;
-                      // 更新消息的 metadata
+                      // 更新消息的 metadata（深拷贝 toolCalls）
                       const currentMessages = useChatStore.getState().messages;
                       const messageIndex = currentMessages.findIndex((m) => m.id === assistantMessageId);
                       if (messageIndex !== -1) {
@@ -135,7 +135,7 @@ export const useChat = () => {
                           ...updatedMessages[messageIndex],
                           metadata: {
                             ...updatedMessages[messageIndex].metadata,
-                            tool_calls: [...toolCalls],
+                            tool_calls: toolCalls.map((tc) => ({ ...tc })), // 深拷贝
                           },
                         };
                         useChatStore.getState().setMessages(updatedMessages);
