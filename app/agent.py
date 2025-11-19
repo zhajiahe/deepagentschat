@@ -84,6 +84,7 @@ async def get_agent(
     )
     tools = await client.get_tools()
     # 为每个用户创建独立的工作目录
+    logger.info(f"get_agent called with user_id={user_id}, type={type(user_id)}")
     root_dir = f"/tmp/{user_id}" if user_id else "/tmp/default"
     logger.info(f"Creating FilesystemSandboxBackend for user_id={user_id}, root_dir={root_dir}")
     backend = FilesystemSandboxBackend(
