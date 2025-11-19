@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Upload, Download, Trash2, RefreshCw, File, FolderOpen } from 'lucide-react';
+import { X, Upload, Download, Trash2, RefreshCw, File, FolderOpen, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import request from '@/utils/request';
 
@@ -20,6 +21,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{ name: string; content: string } | null>(null);
   const { toast } = useToast();
 
   const loadFiles = async () => {
@@ -80,6 +82,23 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
       setUploading(false);
       // Reset input
       event.target.value = '';
+    }
+  };
+
+  const handlePreview = async (filename: string) => {
+    try {
+      const response = await request.get(`/files/read/${filename}`);
+      if (response.data.success) {
+        const content = response.data.data.content;
+        setPreviewFile({ name: filename, content });
+      }
+    } catch (error) {
+      console.error('Failed to preview file:', error);
+      toast({
+        title: '预览失败',
+        description: '文件预览失败，请重试',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -223,7 +242,8 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             {files.map((file) => (
               <div
                 key={file.path}
-                className="p-3 rounded-lg border border-border hover:bg-accent transition-colors"
+                className="p-3 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
+                onClick={() => handlePreview(file.filename)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -237,7 +257,16 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                       {formatFileSize(file.size)}
                     </p>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handlePreview(file.filename)}
+                      title="预览"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -268,6 +297,23 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
       <div className="p-4 border-t border-border text-xs text-muted-foreground text-center">
         共 {files.length} 个文件
       </div>
+
+      {/* File Preview Dialog */}
+      <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <File className="h-5 w-5" />
+              {previewFile?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] w-full rounded-md border p-4">
+            <pre className="text-sm whitespace-pre-wrap font-mono">
+              {previewFile?.content}
+            </pre>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
