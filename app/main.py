@@ -6,7 +6,7 @@ FastAPI 应用主入口
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -117,20 +117,38 @@ app.include_router(files_router, prefix="/api/v1")
 # 挂载前端静态文件
 web_dist_path = Path(__file__).parent.parent / "web" / "dist"
 if web_dist_path.exists():
+    # 处理特定的静态文件（favicon, logo 等）- 必须在 mount 之前定义
+    @app.get("/web/favicon.svg")
+    async def serve_favicon():
+        """处理 favicon 请求"""
+        file_path = web_dist_path / "favicon.svg"
+        if file_path.exists():
+            return FileResponse(file_path)
+        return {"detail": "Favicon not found"}
+
+    @app.get("/web/logo.svg")
+    async def serve_logo():
+        """处理 logo 请求"""
+        file_path = web_dist_path / "logo.svg"
+        if file_path.exists():
+            return FileResponse(file_path)
+        return {"detail": "Logo not found"}
+
+    @app.get("/web/logo_readme.svg")
+    async def serve_logo_readme():
+        """处理 readme logo 请求"""
+        file_path = web_dist_path / "logo_readme.svg"
+        if file_path.exists():
+            return FileResponse(file_path)
+        return {"detail": "Logo not found"}
+
     # 挂载静态资源
     app.mount("/web/assets", StaticFiles(directory=str(web_dist_path / "assets")), name="web_assets")
 
-    # 处理特定的静态文件（favicon, logo 等）
-    @app.get("/web/{filename:path}")
-    async def serve_static_files(filename: str):
-        """处理静态文件请求（favicon, logo 等）"""
-        # 只处理特定的文件扩展名
-        if filename.endswith((".svg", ".png", ".jpg", ".jpeg", ".ico", ".gif", ".webp")):
-            file_path = web_dist_path / filename
-            if file_path.exists() and file_path.is_file():
-                return FileResponse(file_path)
-
-        # 其他路径返回 index.html（SPA 路由）
+    # SPA 路由处理 - 所有其他 /web/* 路径都返回 index.html
+    @app.get("/web/{full_path:path}")
+    async def serve_spa(request: Request, full_path: str):
+        """处理 SPA 路由，所有路径都返回 index.html"""
         index_path = web_dist_path / "index.html"
         if index_path.exists():
             return FileResponse(index_path)
