@@ -26,7 +26,7 @@ from app.core.exceptions import (
     raise_not_found_error,
 )
 from app.core.lifespan import get_cached_graph
-from app.models import Conversation, Message, UserSettings
+from app.models import Conversation, UserSettings
 from app.models.base import BaseResponse
 from app.schemas import ChatRequest, ChatResponse
 from app.utils.datetime import utc_now
@@ -57,6 +57,81 @@ def get_role(msg: BaseMessage) -> str:
     else:
         # 回退到使用消息类型名称
         return msg_type.lower().replace("message", "")
+
+
+def serialize_messages(messages: list[BaseMessage]) -> list[dict]:
+    """将 LangChain 消息列表序列化为字典格式，自动关联工具调用和输出
+
+    Args:
+        messages: LangChain 消息对象列表
+
+    Returns:
+        list[dict]: 序列化后的消息字典列表
+    """
+    # 第一步：收集所有工具调用的输出
+    tool_outputs: dict[str, str] = {}
+    for msg in messages:
+        # ToolMessage 包含工具调用的输出
+        if type(msg).__name__ == "ToolMessage" and hasattr(msg, "tool_call_id") and msg.tool_call_id:
+            tool_outputs[msg.tool_call_id] = str(msg.content) if msg.content else ""
+
+    # 第二步：序列化所有消息
+    serialized: list[dict] = []
+    for index, msg in enumerate(messages):
+        metadata: dict = {
+            "_order_index": index,  # 添加顺序索引，确保前端能正确排序
+        }
+
+        # 处理 AIMessage 的 tool_calls
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            tool_calls_list = []
+            for tool_call in msg.tool_calls:
+                tool_call_dict = {
+                    "id": tool_call.get("id", ""),
+                    "name": tool_call.get("name", ""),
+                    "input": tool_call.get("args", {}),  # 前端期望 input 字段
+                    "arguments": tool_call.get("args", {}),  # 同时保留 arguments 以兼容
+                }
+                # 如果有工具输出，添加到 tool_call 中
+                tool_call_id = tool_call.get("id")
+                if tool_call_id and tool_call_id in tool_outputs:
+                    tool_call_dict["output"] = tool_outputs[tool_call_id]
+                tool_calls_list.append(tool_call_dict)
+
+            metadata["tool_calls"] = tool_calls_list
+
+        # 处理 ToolMessage 的 name 和 tool_call_id
+        if hasattr(msg, "name") and msg.name:
+            metadata["tool_name"] = msg.name
+        if hasattr(msg, "tool_call_id") and msg.tool_call_id:
+            metadata["tool_call_id"] = msg.tool_call_id
+
+        # 添加额外的 kwargs（如果有）
+        if hasattr(msg, "additional_kwargs") and msg.additional_kwargs:
+            metadata.update(msg.additional_kwargs)
+
+        msg_dict = {
+            "role": get_role(msg),
+            "content": str(msg.content) if msg.content else "",
+            "type": type(msg).__name__,
+            "metadata": metadata,
+        }
+
+        serialized.append(msg_dict)
+
+    return serialized
+
+
+def serialize_message(msg: BaseMessage) -> dict:
+    """将单个 LangChain BaseMessage 序列化为字典格式（向后兼容）
+
+    Args:
+        msg: LangChain 消息对象
+
+    Returns:
+        dict: 序列化后的消息字典
+    """
+    return serialize_messages([msg])[0]
 
 
 async def get_or_create_conversation(
@@ -115,11 +190,15 @@ async def get_user_config(
 
     Returns:
         tuple[dict, dict, dict]: (config, context, llm_params)
-            - config: LangGraph 配置（包含 thread_id、user_id 等）
+            - config: LangGraph 配置（包含 thread_id、user_id、recursion_limit 等）
             - context: LangGraph 上下文
             - llm_params: LLM 模型参数（llm_model, api_key, base_url, max_tokens）
     """
-    config: dict = {"configurable": {"thread_id": thread_id, "user_id": str(user_id)}}
+    # 使用全局配置作为默认值
+    config: dict = {
+        "configurable": {"thread_id": thread_id, "user_id": str(user_id)},
+        "recursion_limit": settings.LANGGRAPH_RECURSION_LIMIT,  # 添加递归限制
+    }
     context: dict = {}
     llm_params: dict[str, str | int | None] = {
         "llm_model": None,
@@ -135,6 +214,10 @@ async def get_user_config(
         # LangGraph 配置和上下文
         config["configurable"].update(user_settings.config or {})
         context = user_settings.context or {}
+
+        # 允许用户自定义递归限制（如果在 config 中设置）
+        if user_settings.config and "recursion_limit" in user_settings.config:
+            config["recursion_limit"] = user_settings.config["recursion_limit"]
 
         # LLM 模型参数（用于动态创建图）
         if user_settings.llm_model:
@@ -162,95 +245,18 @@ async def get_user_config(
     return config, context, llm_params
 
 
-async def save_user_message(thread_id: str, message: str, metadata: dict | None, db: AsyncSession) -> None:
-    """保存用户消息
+async def update_conversation_time(thread_id: str, db: AsyncSession) -> None:
+    """更新会话时间
 
     Args:
         thread_id: 会话线程ID
-        message: 消息内容
-        metadata: 元数据
         db: 数据库会话
     """
-    user_message = Message(
-        thread_id=thread_id,
-        role="user",
-        content=message,
-        meta_data=metadata or {},
-    )
-    db.add(user_message)
-    await db.commit()
-
-
-async def save_assistant_message(
-    thread_id: str, messages: list[BaseMessage], db: AsyncSession, update_conversation: bool = True
-) -> None:
-    """保存助手消息并更新会话时间
-
-    Args:
-        thread_id: 会话线程ID
-        messages: 消息列表
-        db: 数据库会话
-        update_conversation: 是否更新会话时间
-    """
-    if not messages:
-        return
-
-    last_message = messages[-1]
-    role = get_role(last_message)
-
-    # 只保存助手消息，避免重复保存用户消息
-    if role == "assistant":
-        # 提取工具调用信息
-        meta_data = dict(last_message.additional_kwargs) if last_message.additional_kwargs else {}
-
-        # 只提取当前这轮对话的工具调用（从最后一个 HumanMessage 之后的消息）
-        tool_calls = []
-        # 找到最后一个 HumanMessage 的索引
-        last_human_index = -1
-        for i in range(len(messages) - 1, -1, -1):
-            if hasattr(messages[i], "type") and messages[i].type == "human":
-                last_human_index = i
-                break
-
-        # 只处理最后一个 HumanMessage 之后的消息
-        start_index = last_human_index + 1 if last_human_index >= 0 else 0
-        for i in range(start_index, len(messages)):
-            msg = messages[i]
-            # 检查是否是 AIMessage 且包含 tool_calls
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                for tool_call in msg.tool_calls:
-                    tool_info = {
-                        "name": tool_call.get("name", ""),
-                        "arguments": tool_call.get("args", {}),
-                    }
-
-                    # 查找对应的工具输出
-                    if i + 1 < len(messages):
-                        next_msg = messages[i + 1]
-                        if hasattr(next_msg, "name") and next_msg.name == tool_call.get("name"):
-                            tool_info["output"] = next_msg.content
-
-                    tool_calls.append(tool_info)
-
-        if tool_calls:
-            meta_data["tool_calls"] = tool_calls
-
-        message = Message(
-            thread_id=thread_id,
-            role=role,
-            content=str(last_message.content) if last_message.content else "",
-            meta_data=meta_data,
-        )
-        db.add(message)
-
-    # 更新会话时间
-    if update_conversation:
-        result = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
-        conversation = result.scalar_one_or_none()
-        if conversation:
-            conversation.update_time = utc_now()
-
-    await db.commit()
+    result = await db.execute(select(Conversation).where(Conversation.thread_id == thread_id))
+    conversation = result.scalar_one_or_none()
+    if conversation:
+        conversation.update_time = utc_now()
+        await db.commit()
 
 
 @router.post("", response_model=BaseResponse[ChatResponse])
@@ -275,9 +281,6 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
     config, context, llm_params = await get_user_config(current_user.id, thread_id, db)
 
     try:
-        # 保存用户消息
-        await save_user_message(thread_id, request.message, request.metadata, db)
-
         # 执行图（异步）- 使用任务包装以便支持取消
         start_time = utc_now()
 
@@ -306,7 +309,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
         await task_manager.register_task(thread_id, invoke_task)
 
         try:
-            graph_result = await invoke_task
+            await invoke_task
         except asyncio.CancelledError:
             logger.info(f"Non-stream chat cancelled for thread_id: {thread_id}")
             await task_manager.unregister_task(thread_id)
@@ -321,18 +324,39 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
         await task_manager.unregister_task(thread_id)
         duration = (utc_now() - start_time).total_seconds() * 1000
 
-        # 保存助手消息并更新会话时间
-        result_messages = graph_result["messages"]
-        await save_assistant_message(thread_id, result_messages, db, update_conversation=True)
+        # 更新会话时间
+        await update_conversation_time(thread_id, db)
+
+        # 从 checkpoint 获取完整的消息历史
+        state = await compiled_graph.aget_state(config)
+        all_messages = state.values.get("messages", []) if state and state.values else []
+
+        # 找到最后一个用户消息的索引，提取本轮对话的所有消息
+        last_human_index = -1
+        for i in range(len(all_messages) - 1, -1, -1):
+            if get_role(all_messages[i]) == "user":
+                last_human_index = i
+                break
+
+        # 序列化本轮对话的消息（从最后一个用户消息开始）
+        current_turn_messages = all_messages[last_human_index:] if last_human_index >= 0 else all_messages
+        serialized_messages = serialize_messages(current_turn_messages)
 
         # 提取最后一条助手回复用于响应
-        assistant_content = result_messages[-1].content if result_messages else ""
+        assistant_content = (
+            all_messages[-1].content if all_messages and get_role(all_messages[-1]) == "assistant" else ""
+        )
 
         return BaseResponse(
             success=True,
             code=200,
             msg="对话成功",
-            data=ChatResponse(thread_id=thread_id, response=assistant_content, duration_ms=int(duration)),
+            data=ChatResponse(
+                thread_id=thread_id,
+                response=str(assistant_content) if assistant_content else "",
+                duration_ms=int(duration),
+                messages=serialized_messages,
+            ),
         )
 
     except Exception as e:
@@ -360,16 +384,14 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
         request.thread_id, request.message, current_user.id, request.metadata, db
     )
 
-    # 保存用户消息
-    await save_user_message(thread_id, request.message, request.metadata, db)
-
     # 获取用户配置（包括 LLM 参数）
     config, context, llm_params = await get_user_config(current_user.id, thread_id, db)
 
+    # 调试日志：验证 recursion_limit 是否正确设置
+    logger.debug(f"Stream config for thread {thread_id}: recursion_limit={config.get('recursion_limit', 'NOT SET')}")
+
     async def event_generator():
-        all_messages = []
         stopped = False
-        assistant_content = ""  # 累积助手消息内容
         # 注册任务（使用当前协程作为任务标识）
         current_task = asyncio.current_task()
         if current_task:
@@ -389,12 +411,16 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                 max_tokens=max_tokens if isinstance(max_tokens, int) else 4096,
                 user_id=current_user.id,  # 使用 UUID，不转换为 int
             )
-            # 使用 astream_events 获取逐token流式输出
-            async for event in compiled_graph.astream_events(
+
+            # 使用 astream 获取逐 token 流式输出
+            # 用于累积工具调用的参数和消息内容
+            tool_call_chunks: dict[str, dict] = {}  # {tool_call_id: {name, args_accumulated}}
+            current_checkpoint_ns: str | None = None  # 当前消息的 checkpoint namespace
+
+            async for token, metadata in compiled_graph.astream(
                 {"messages": [HumanMessage(content=request.message)]},
                 config=config,
-                context=context,
-                version="v2",
+                stream_mode="messages",
             ):
                 # 检查是否被停止
                 if await task_manager.is_stopped(thread_id):
@@ -403,62 +429,116 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                     yield f"data: {json.dumps({'stopped': True, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
                     break
 
-                # 处理不同类型的事件
-                event_type = event.get("event")
+                # token 是一个对象，包含 content_blocks 属性
+                # content_blocks 格式: [{'type': 'text', 'text': '...'}, {'type': 'tool_call_chunk', ...}, ...]
+                if hasattr(token, "content_blocks"):
+                    node_name = metadata.get("langgraph_node", "")
+                    checkpoint_ns = metadata.get("langgraph_checkpoint_ns", "")
 
-                # 处理 LLM token 流
-                if event_type == "on_chat_model_stream":
-                    chunk_data = event.get("data", {})
-                    if chunk_data is not None and "chunk" in chunk_data:
-                        chunk_obj = chunk_data["chunk"]
-                        if hasattr(chunk_obj, "content") and chunk_obj.content:
-                            chunk_text = chunk_obj.content
-                            assistant_content += chunk_text
-                            # 发送增量内容
-                            yield f"data: {json.dumps({'type': 'content', 'content': chunk_text, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                    # 检测新消息：checkpoint_ns 改变且是 model 节点且有内容
+                    if (
+                        checkpoint_ns
+                        and checkpoint_ns != current_checkpoint_ns
+                        and node_name == "model"
+                        and token.content_blocks
+                    ):
+                        # 新消息开始
+                        if current_checkpoint_ns is not None:
+                            # 在发送 message_end 之前，发送工具调用的完整参数
+                            for tool_call_id, tool_data in tool_call_chunks.items():
+                                try:
+                                    # 尝试解析 JSON 参数
+                                    tool_input = json.loads(tool_data["args"]) if tool_data["args"] else {}
+                                except json.JSONDecodeError:
+                                    tool_input = {"raw": tool_data["args"]}
 
-                # 处理工具调用开始
-                elif event_type == "on_tool_start":
-                    tool_data = event.get("data", {})
-                    tool_name = event.get("name", "unknown")
-                    tool_input = tool_data.get("input", {})
-                    yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': tool_name, 'tool_input': tool_input, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                                yield f"data: {json.dumps({'type': 'tool_input', 'tool_name': tool_data['name'], 'tool_call_id': tool_call_id, 'tool_input': tool_input, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                            # 发送消息结束事件
+                            yield f"data: {json.dumps({'type': 'message_end', 'message_id': current_checkpoint_ns, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                        # 发送消息开始事件
+                        current_checkpoint_ns = checkpoint_ns
+                        yield f"data: {json.dumps({'type': 'message_start', 'message_id': checkpoint_ns, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
 
-                # 处理工具调用结束
-                elif event_type == "on_tool_end":
-                    tool_data = event.get("data", {})
-                    tool_name = event.get("name", "unknown")
-                    tool_output = tool_data.get("output")
-                    yield f"data: {json.dumps({'type': 'tool_end', 'tool_name': tool_name, 'tool_output': str(tool_output), 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                    for block in token.content_blocks:
+                        if not isinstance(block, dict):
+                            continue
 
-                # 收集最终消息用于保存
-                elif event_type == "on_chain_end":
-                    output = event.get("data", {}).get("output", {})
-                    if output is not None and "messages" in output:
-                        messages = output["messages"]
-                        if messages:
-                            all_messages = messages
+                        block_type = block.get("type")
 
-            # 如果被停止，不保存消息
+                        # 处理文本块
+                        if block_type == "text" and block.get("text"):
+                            # 添加 node_name 以便前端区分是 model 节点还是 tools 节点的内容
+                            yield f"data: {json.dumps({'type': 'content', 'content': block['text'], 'node': node_name, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+
+                        # 处理工具调用块
+                        elif block_type == "tool_call_chunk":
+                            tool_call_id = block.get("id", "")
+                            tool_name = block.get("name")
+                            tool_args = block.get("args", "")
+
+                            # 如果是新的工具调用（有 id 和 name）
+                            if tool_call_id and tool_name:
+                                if tool_call_id not in tool_call_chunks:
+                                    # 发送工具调用开始事件
+                                    tool_call_chunks[tool_call_id] = {
+                                        "name": tool_name,
+                                        "args": tool_args,
+                                    }
+                                    yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': tool_name, 'tool_call_id': tool_call_id, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                                else:
+                                    # 累积参数
+                                    tool_call_chunks[tool_call_id]["args"] += tool_args
+                            # 如果只有参数（继续累积）
+                            elif tool_args and tool_call_chunks:
+                                # 找到最后一个工具调用并累积参数
+                                last_tool_id = list(tool_call_chunks.keys())[-1]
+                                tool_call_chunks[last_tool_id]["args"] += tool_args
+
+                    # 注意：tool_input 事件已经在检测到新消息时发送（第439-446行），这里不再重复发送
+
+            # 如果被停止，不更新会话时间
             if stopped:
                 await task_manager.unregister_task(thread_id)
                 return
 
-            # 保存助手消息并更新会话时间
-            # 如果 all_messages 为空，尝试从图状态中获取完整消息历史
-            if not all_messages:
-                try:
-                    state = await compiled_graph.aget_state(config)
-                    if state and state.values is not None and "messages" in state.values:
-                        all_messages = state.values["messages"]
-                except Exception as e:
-                    logger.warning(f"Failed to get state for complete messages: {e}")
-
-            if all_messages:
+            # 更新会话时间
+            try:
                 async with AsyncSessionLocal() as new_session:
-                    await save_assistant_message(thread_id, all_messages, new_session, update_conversation=True)
+                    await update_conversation_time(thread_id, new_session)
+            except Exception as e:
+                logger.error(f"Failed to update conversation time: {e}")
 
-            yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
+            # 获取完整的消息历史（包括工具调用和输出）
+            try:
+                state = await compiled_graph.aget_state(config)
+                all_messages = state.values.get("messages", []) if state and state.values else []
+
+                # 找到最后一个用户消息的索引，提取本轮对话的所有消息
+                last_human_index = -1
+                for i in range(len(all_messages) - 1, -1, -1):
+                    if get_role(all_messages[i]) == "user":
+                        last_human_index = i
+                        break
+
+                # 提取本轮对话的消息
+                current_turn_messages = all_messages[last_human_index:] if last_human_index >= 0 else all_messages
+
+                # 发送工具输出事件（如果有工具调用）
+                for msg in current_turn_messages:
+                    if get_role(msg) == "tool" and hasattr(msg, "tool_call_id"):
+                        tool_call_id = msg.tool_call_id
+                        tool_name = msg.name if hasattr(msg, "name") else ""
+                        tool_output = str(msg.content) if msg.content else ""
+                        yield f"data: {json.dumps({'type': 'tool_end', 'tool_name': tool_name, 'tool_call_id': tool_call_id, 'tool_output': tool_output, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+
+                # 序列化本轮对话的消息
+                serialized_messages = serialize_messages(current_turn_messages)
+
+                # 在 done 事件中包含完整的消息列表
+                yield f"data: {json.dumps({'done': True, 'messages': serialized_messages}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.error(f"Failed to get messages: {e}")
+                yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
 
         except asyncio.CancelledError:
             logger.info(f"Stream cancelled for thread_id: {thread_id}")

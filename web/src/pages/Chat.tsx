@@ -64,7 +64,6 @@ export const Chat = () => {
     }
   }, [isAuthenticated, loadSettings]);
 
-
   const handleSelectConversation = async (threadId: string) => {
     const conversation = conversations.find((c) => c.thread_id === threadId);
     if (conversation) {
@@ -118,9 +117,8 @@ export const Chat = () => {
         {/* Header - 简化的顶部栏 */}
         <div className="h-14 flex items-center justify-between px-4 sm:px-6 bg-card dark:bg-grokbg">
           <div className="flex items-center gap-2 ml-12 md:ml-0">
-            <h1 className="text-base sm:text-lg font-semibold text-foreground dark:text-groktext">AI Agent</h1>
             <span className="text-xs text-muted-foreground dark:text-groksub hidden sm:inline">
-              {settings.llm_model || 'Qwen/Qwen3-8B'}
+              {settings.llm_model || 'qwen-plus'}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -147,7 +145,11 @@ export const Chat = () => {
 
         {/* Messages or Empty State */}
         {messages.length === 0 ? (
-          <EmptyState onNewChat={() => {/* 可选：点击建议卡片时的处理 */}} />
+          <EmptyState
+            onNewChat={() => {
+              /* 可选：点击建议卡片时的处理 */
+            }}
+          />
         ) : (
           <MessageList messages={messages} />
         )}

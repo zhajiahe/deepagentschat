@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { X, Upload, Download, Trash2, RefreshCw, File, FolderOpen, Eye } from 'lucide-react';
+import { Download, Eye, File, FolderOpen, RefreshCw, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import request from '@/utils/request';
 
@@ -189,7 +189,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / k ** i) * 100) / 100 + ' ' + sizes[i];
   };
 
   if (!isOpen) return null;
@@ -217,23 +217,12 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             </span>
           </Button>
         </label>
-        <input
-          id="file-upload"
-          type="file"
-          className="hidden"
-          onChange={handleUpload}
-          disabled={uploading}
-        />
+        <input id="file-upload" type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
         <Button variant="outline" size="sm" onClick={loadFiles} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           刷新
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setClearDialogOpen(true)}
-          disabled={files.length === 0}
-        >
+        <Button variant="outline" size="sm" onClick={() => setClearDialogOpen(true)} disabled={files.length === 0}>
           <Trash2 className="h-4 w-4 mr-2" />
           清空
         </Button>
@@ -265,9 +254,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                         {file.filename}
                       </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatFileSize(file.size)}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{formatFileSize(file.size)}</p>
                   </div>
                   <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button
@@ -326,9 +313,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="h-[60vh] w-full rounded-md border p-4">
-            <pre className="text-sm whitespace-pre-wrap font-mono">
-              {previewFile?.content}
-            </pre>
+            <pre className="text-sm whitespace-pre-wrap font-mono">{previewFile?.content}</pre>
           </ScrollArea>
         </DialogContent>
       </Dialog>
@@ -338,9 +323,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>确认清空</DialogTitle>
-            <DialogDescription>
-              确定要清空所有文件吗？此操作不可恢复。
-            </DialogDescription>
+            <DialogDescription>确定要清空所有文件吗？此操作不可恢复。</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setClearDialogOpen(false)}>

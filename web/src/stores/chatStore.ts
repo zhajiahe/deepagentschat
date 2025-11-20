@@ -1,25 +1,41 @@
 import { create } from 'zustand';
 import type { ConversationResponse } from '@/api/aPIDoc';
 
+// 工具调用信息
 export interface ToolCall {
-  id?: string;
+  id: string;
   name: string;
-  arguments?: string;
   input?: any;
   output?: any;
 }
 
-export interface Message {
+// 基础消息接口
+export interface BaseMessage {
   id: number;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
   created_at: string;
   isStreaming?: boolean;
-  metadata?: {
-    tool_calls?: ToolCall[];
-    [key: string]: any;
-  };
 }
+
+// 用户消息
+export interface UserMessage extends BaseMessage {
+  type: 'user';
+  content: string;
+}
+
+// AI 消息
+export interface AssistantMessage extends BaseMessage {
+  type: 'assistant';
+  content: string;
+}
+
+// 工具调用消息
+export interface ToolCallMessage extends BaseMessage {
+  type: 'tool_call';
+  toolCall: ToolCall;
+}
+
+// 联合类型
+export type Message = UserMessage | AssistantMessage | ToolCallMessage;
 
 interface ChatState {
   // 当前会话列表
@@ -45,7 +61,7 @@ interface ChatState {
   setCurrentConversation: (conversation: ConversationResponse | null) => void;
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
-  updateMessage: (messageId: number, content: string) => void;
+  updateMessage: (messageId: number, updates: Partial<Message>) => void;
   setIsLoading: (isLoading: boolean) => void;
   setIsSending: (isSending: boolean) => void;
   clearMessages: () => void;
@@ -91,9 +107,9 @@ export const useChatStore = create<ChatState>((set) => ({
       messages: [...state.messages, message],
     })),
 
-  updateMessage: (messageId, content) =>
+  updateMessage: (messageId, updates) =>
     set((state) => ({
-      messages: state.messages.map((msg) => (msg.id === messageId ? { ...msg, content, isStreaming: false } : msg)),
+      messages: state.messages.map((msg) => (msg.id === messageId ? { ...msg, ...updates } : msg)),
     })),
 
   setIsLoading: (isLoading) => set({ isLoading }),

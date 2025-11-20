@@ -1,11 +1,10 @@
-import { CheckIcon, CopyIcon, UserIcon } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { CheckIcon, CopyIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Message } from '@/stores/chatStore';
+import type { UserMessage as UserMessageType } from '@/stores/chatStore';
 import { formatTime } from '@/utils/date';
 
 interface UserMessageProps {
-  message: Message;
+  message: UserMessageType & { role: 'user' };
   onCopy: (content: string, id: number) => void;
   copiedId: number | null;
 }

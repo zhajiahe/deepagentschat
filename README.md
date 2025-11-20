@@ -116,7 +116,7 @@ make dev
 ## 🏗️ 项目架构
 
 ```
-fastapi-template/
+deepagentschat/
 ├── app/                          # 后端核心代码
 │   ├── api/                      # API 路由层
 │   │   ├── chat.py               # 对话接口（流式/非流式）
@@ -254,7 +254,7 @@ pnpm lint         # 代码检查
 - [shadcn/ui](https://ui.shadcn.com/) - 优雅的 React 组件库
 
 ## 🙏🙏 特别致谢
-- cursor
+- [cursor](http://cursor.com/) - AI IDE工具
 
 ---
 

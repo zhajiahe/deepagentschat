@@ -107,7 +107,11 @@ if __name__ == "__main__":
 
     async def main():
         agent = await get_agent()
-        result = await agent.ainvoke({"messages": [{"role": "user", "content": "What is 1231972 / 8723?"}]})
-        print(result)
+        async for token, metadata in agent.astream(
+            {"messages": [{"role": "user", "content": "列举当前文件夹文件列表"}]},
+            stream_mode="messages",
+        ):
+            # `token` contains token-level contentBlocks; metadata tells which node produced it
+            print(token.content_blocks, metadata)
 
     asyncio.run(main())

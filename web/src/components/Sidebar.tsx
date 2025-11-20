@@ -140,7 +140,9 @@ export const Sidebar = ({ onSearchOpen }: SidebarProps) => {
       `}
       >
         {/* Logo */}
-        <div className={`p-4 border-b border-border dark:border-grokborder ${isCollapsed ? 'flex justify-center' : ''}`}>
+        <div
+          className={`p-4 border-b border-border dark:border-grokborder ${isCollapsed ? 'flex justify-center' : ''}`}
+        >
           {isCollapsed ? (
             <img src="/web/logo.svg" alt="DeepAgents" className="h-8 w-8" />
           ) : (
@@ -194,20 +196,13 @@ export const Sidebar = ({ onSearchOpen }: SidebarProps) => {
               onMouseEnter={() => setShowHistoryPopover(true)}
               onMouseLeave={() => setShowHistoryPopover(false)}
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-full dark:hover:bg-grokgray/50"
-                title="历史对话"
-              >
+              <Button variant="ghost" size="icon" className="w-full dark:hover:bg-grokgray/50" title="历史对话">
                 <HistoryIcon size={20} />
               </Button>
 
               {/* 悬浮的对话列表 */}
               {showHistoryPopover && conversations.length > 0 && (
-                <div
-                  className="absolute left-full ml-1 top-0 w-64 max-h-96 bg-card dark:bg-grokgray border border-border dark:border-grokborder rounded-lg shadow-xl overflow-hidden z-50"
-                >
+                <div className="absolute left-full ml-1 top-0 w-64 max-h-96 bg-card dark:bg-grokgray border border-border dark:border-grokborder rounded-lg shadow-xl overflow-hidden z-50">
                   <div className="p-2 border-b border-border dark:border-grokborder">
                     <div className="text-sm font-medium text-foreground dark:text-groktext">历史对话</div>
                   </div>
@@ -248,78 +243,78 @@ export const Sidebar = ({ onSearchOpen }: SidebarProps) => {
         {!isCollapsed && (
           <ScrollArea className="flex-1 px-3">
             {conversations.map((conversation) => (
-            <div
-              key={conversation.thread_id}
-              className={`group relative mb-1 cursor-pointer transition-colors rounded-lg ${
-                currentConversation?.thread_id === conversation.thread_id
-                  ? 'bg-accent dark:bg-grokgray/80 text-foreground dark:text-white'
-                  : 'text-muted-foreground dark:text-groksub hover:bg-accent/50 dark:hover:bg-grokgray/50'
-              }`}
-              onClick={() => {
-                selectConversation(conversation);
-                setIsMobileOpen(false);
-              }}
-            >
-              {editingId === conversation.thread_id && !isCollapsed ? (
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <Input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="flex-1 h-8 text-sm"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSaveEdit(conversation.thread_id);
-                      } else if (e.key === 'Escape') {
-                        handleCancelEdit();
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleSaveEdit(conversation.thread_id)}
-                    className="h-8 w-8"
-                  >
-                    <CheckIcon size={14} />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={handleCancelEdit} className="h-8 w-8">
-                    <XIcon size={14} />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 px-3 py-2.5">
-                  <MessageSquareIcon size={16} className="flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate">{conversation.title || 'New conversation'}</div>
-                  </div>
-                  <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStartEdit(conversation);
+              <div
+                key={conversation.thread_id}
+                className={`group relative mb-1 cursor-pointer transition-colors rounded-lg ${
+                  currentConversation?.thread_id === conversation.thread_id
+                    ? 'bg-accent dark:bg-grokgray/80 text-foreground dark:text-white'
+                    : 'text-muted-foreground dark:text-groksub hover:bg-accent/50 dark:hover:bg-grokgray/50'
+                }`}
+                onClick={() => {
+                  selectConversation(conversation);
+                  setIsMobileOpen(false);
+                }}
+              >
+                {editingId === conversation.thread_id && !isCollapsed ? (
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="flex-1 h-8 text-sm"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveEdit(conversation.thread_id);
+                        } else if (e.key === 'Escape') {
+                          handleCancelEdit();
+                        }
                       }}
-                      className="h-6 w-6 hover:bg-accent dark:hover:bg-grokgray"
-                      title="重命名"
-                    >
-                      <EditIcon size={12} />
-                    </Button>
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={(e) => handleDelete(conversation.thread_id, e)}
-                      className="h-6 w-6 text-destructive hover:text-destructive hover:bg-accent dark:hover:bg-grokgray"
-                      title="删除"
+                      onClick={() => handleSaveEdit(conversation.thread_id)}
+                      className="h-8 w-8"
                     >
-                      <TrashIcon size={12} />
+                      <CheckIcon size={14} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={handleCancelEdit} className="h-8 w-8">
+                      <XIcon size={14} />
                     </Button>
                   </div>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <MessageSquareIcon size={16} className="flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm truncate">{conversation.title || 'New conversation'}</div>
+                    </div>
+                    <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEdit(conversation);
+                        }}
+                        className="h-6 w-6 hover:bg-accent dark:hover:bg-grokgray"
+                        title="重命名"
+                      >
+                        <EditIcon size={12} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => handleDelete(conversation.thread_id, e)}
+                        className="h-6 w-6 text-destructive hover:text-destructive hover:bg-accent dark:hover:bg-grokgray"
+                        title="删除"
+                      >
+                        <TrashIcon size={12} />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </ScrollArea>
         )}

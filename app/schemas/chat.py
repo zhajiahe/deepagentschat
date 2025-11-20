@@ -25,6 +25,7 @@ class ChatResponse(BaseModel):
     thread_id: str = Field(..., description="会话线程ID")
     response: str = Field(..., description="助手回复")
     duration_ms: int = Field(..., description="执行时长(毫秒)")
+    messages: list[dict[str, Any]] = Field(default_factory=list, description="本轮对话的所有消息（包括工具调用）")
 
 
 class MessageResponse(BaseModel):

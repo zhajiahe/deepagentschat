@@ -1,15 +1,32 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ChatRequest, MessageResponse } from '@/api/aPIDoc';
-import { useChatStore } from '@/stores/chatStore';
-import request from '@/utils/request';
+import {
+  useChatStore,
+  type Message,
+  type UserMessage,
+  type AssistantMessage,
+  type ToolCallMessage,
+} from '@/stores/chatStore';
 
+/**
+ * 聊天钩子 - 重构版
+ *
+ * 核心设计：
+ * 1. 消息分为三种类型：UserMessage、AssistantMessage、ToolCallMessage
+ * 2. 流式阶段严格按照后端事件创建和更新消息
+ * 3. 不使用启发式判断，完全依赖后端事件类型
+ */
 export const useChat = () => {
-  const { currentConversation, messages, addMessage, updateMessage, setIsSending, isSending } = useChatStore();
+  const { messages, addMessage, updateMessage, setIsSending, isSending, setMessages } = useChatStore();
+  const { currentConversation } = useChatStore();
 
-  const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
-  const abortControllerRef = useState<{ current: AbortController | null }>({ current: null })[0];
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // 发送消息（流式）
+  // 流式状态管理 - 使用 ref 而不是 state，避免异步更新问题
+  const currentAssistantMessageIdRef = useRef<number | null>(null);
+  const toolCallMessagesMap = useRef<Map<string, number>>(new Map()); // tool_call_id -> message_id
+  const incompleteLine = useRef('');
+
   const sendMessageStream = useCallback(
     async (content: string, onNewConversation?: (threadId: string) => void) => {
       if (!content.trim() || isSending) return;
@@ -17,31 +34,20 @@ export const useChat = () => {
       setIsSending(true);
 
       // 添加用户消息
-      const userMessageTime = new Date().toISOString();
-      const userMessage = {
+      const userMessage: UserMessage = {
         id: Date.now(),
-        role: 'user' as const,
+        type: 'user',
         content,
-        created_at: userMessageTime,
+        created_at: new Date().toISOString(),
       };
       addMessage(userMessage);
 
-      // 创建一个临时的助手消息用于流式更新
-      // 确保助手消息的时间戳晚于用户消息
-      const assistantMessageId = Date.now() + 1;
-      const assistantMessageTime = new Date(Date.now() + 1).toISOString();
-      const assistantMessage = {
-        id: assistantMessageId,
-        role: 'assistant' as const,
-        content: '',
-        created_at: assistantMessageTime,
-        isStreaming: true,
-      };
-      addMessage(assistantMessage);
-      setStreamingMessageId(assistantMessageId);
+      // 重置流式状态
+      currentAssistantMessageIdRef.current = null;
+      toolCallMessagesMap.current.clear();
+      incompleteLine.current = '';
 
       try {
-        // 创建新的 AbortController
         abortControllerRef.current = new AbortController();
 
         const requestData: ChatRequest = {
@@ -65,19 +71,17 @@ export const useChat = () => {
 
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
-        let accumulatedContent = '';
-        let streamDone = false;
-        const toolCalls: any[] = [];
-        const toolCallsMap = new Map<string, any>();
         let newThreadId: string | null = null;
+        let doneMessages: any[] | null = null;
 
         if (reader) {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = (incompleteLine.current + chunk).split('\n');
+            incompleteLine.current = lines.pop() || '';
 
             for (const line of lines) {
               if (line.startsWith('data: ')) {
@@ -88,76 +92,140 @@ export const useChat = () => {
                 try {
                   const parsed = JSON.parse(data);
 
-                  // 捕获 thread_id（用于新会话）
                   if (parsed.thread_id && !currentConversation) {
                     newThreadId = parsed.thread_id;
                   }
 
-                  // 处理不同类型的事件
-                  if (parsed.type === 'content' && parsed.content) {
-                    // LLM 内容流
-                    accumulatedContent += parsed.content;
-                    updateMessage(assistantMessageId, accumulatedContent);
-                  } else if (parsed.type === 'tool_start') {
-                    // 工具调用开始 - 创建临时工具调用记录
-                    const toolCallId = `${parsed.tool_name}_${Date.now()}`;
-                    const toolCall = {
-                      name: parsed.tool_name,
-                      input: parsed.tool_input,
-                    };
-                    toolCallsMap.set(toolCallId, toolCall);
-                    toolCalls.push(toolCall);
-                    // 更新消息的 metadata
-                    const currentMessages = useChatStore.getState().messages;
-                    const messageIndex = currentMessages.findIndex((m) => m.id === assistantMessageId);
-                    if (messageIndex !== -1) {
-                      const updatedMessages = [...currentMessages];
-                      updatedMessages[messageIndex] = {
-                        ...updatedMessages[messageIndex],
-                        metadata: {
-                          ...updatedMessages[messageIndex].metadata,
-                          tool_calls: [...toolCalls],
-                        },
-                      };
-                      useChatStore.getState().setMessages(updatedMessages);
-                    }
-                  } else if (parsed.type === 'tool_end') {
-                    // 工具调用结束 - 更新输出结果
-                    const toolCall = toolCalls.find((tc) => tc.name === parsed.tool_name);
-                    if (toolCall) {
-                      toolCall.output = parsed.tool_output;
-                      // 更新消息的 metadata
-                      const currentMessages = useChatStore.getState().messages;
-                      const messageIndex = currentMessages.findIndex((m) => m.id === assistantMessageId);
-                      if (messageIndex !== -1) {
-                        const updatedMessages = [...currentMessages];
-                        updatedMessages[messageIndex] = {
-                          ...updatedMessages[messageIndex],
-                          metadata: {
-                            ...updatedMessages[messageIndex].metadata,
-                            tool_calls: [...toolCalls],
+
+                  switch (parsed.type) {
+                    case 'message_start':
+                      // 创建新的 AI 消息
+                      {
+                        const newMessageId = Date.now() + Math.random();
+                        const newAssistantMessage: AssistantMessage = {
+                          id: newMessageId,
+                          type: 'assistant',
+                          content: '',
+                          created_at: new Date().toISOString(),
+                          isStreaming: true,
+                        };
+                        addMessage(newAssistantMessage);
+                        currentAssistantMessageIdRef.current = newMessageId;
+                      }
+                      break;
+
+                    case 'message_end':
+                      // 标记当前 AI 消息为完成状态
+                      if (currentAssistantMessageIdRef.current) {
+                        updateMessage(currentAssistantMessageIdRef.current, { isStreaming: false });
+                        currentAssistantMessageIdRef.current = null;
+                      }
+                      break;
+
+                    case 'content':
+                      if (parsed.content) {
+                        if (parsed.node === 'model' && currentAssistantMessageIdRef.current) {
+                          // 处理来自 model 节点的内容（AI 生成的文本）
+                          const currentMsgs = useChatStore.getState().messages;
+                          const currentMsg = currentMsgs.find((m) => m.id === currentAssistantMessageIdRef.current);
+                          if (currentMsg && currentMsg.type === 'assistant') {
+                            const newContent = currentMsg.content + parsed.content;
+                            updateMessage(currentAssistantMessageIdRef.current, { content: newContent });
+                          }
+                        } else if (parsed.node === 'tools') {
+                          // 处理来自 tools 节点的内容（工具输出）
+                          // 将工具输出更新到最后一个工具调用消息中
+                          const toolMessageIds = Array.from(toolCallMessagesMap.current.values());
+                          if (toolMessageIds.length > 0) {
+                            const lastToolMessageId = toolMessageIds[toolMessageIds.length - 1];
+                            const currentMsgs = useChatStore.getState().messages;
+                            const toolMsg = currentMsgs.find((m) => m.id === lastToolMessageId);
+                            if (toolMsg && toolMsg.type === 'tool_call') {
+                              updateMessage(lastToolMessageId, {
+                                toolCall: {
+                                  ...toolMsg.toolCall,
+                                  output: parsed.content,
+                                },
+                              });
+                            }
+                          }
+                        }
+                      }
+                      break;
+
+                    case 'tool_start':
+                      // 创建新的工具调用消息
+                      if (parsed.tool_call_id && parsed.tool_name) {
+                        const toolMessageId = Date.now() + Math.random();
+                        const toolCallMessage: ToolCallMessage = {
+                          id: toolMessageId,
+                          type: 'tool_call',
+                          created_at: new Date().toISOString(),
+                          isStreaming: true,
+                          toolCall: {
+                            id: parsed.tool_call_id,
+                            name: parsed.tool_name,
                           },
                         };
-                        useChatStore.getState().setMessages(updatedMessages);
+                        addMessage(toolCallMessage);
+                        toolCallMessagesMap.current.set(parsed.tool_call_id, toolMessageId);
                       }
-                    }
-                  } else if (parsed.content) {
-                    // 兼容旧格式（没有type字段）
-                    accumulatedContent += parsed.content;
-                    updateMessage(assistantMessageId, accumulatedContent);
-                  }
+                      break;
 
-                  // 检查是否完成
-                  if (parsed.done) {
-                    streamDone = true;
-                  }
+                    case 'tool_input':
+                      // 更新工具调用的输入参数
+                      if (parsed.tool_call_id) {
+                        const toolMessageId = toolCallMessagesMap.current.get(parsed.tool_call_id);
+                        if (toolMessageId) {
+                          const currentMsgs = useChatStore.getState().messages;
+                          const toolMsg = currentMsgs.find((m) => m.id === toolMessageId);
+                          if (toolMsg && toolMsg.type === 'tool_call') {
+                            updateMessage(toolMessageId, {
+                              toolCall: {
+                                ...toolMsg.toolCall,
+                                input: parsed.tool_input,
+                              },
+                            });
+                          }
+                        }
+                      }
+                      break;
 
-                  if (parsed.stopped) {
-                    // 流式被停止
-                    break;
+                    case 'tool_end':
+                      // 更新工具调用的输出结果
+                      if (parsed.tool_call_id) {
+                        const toolMessageId = toolCallMessagesMap.current.get(parsed.tool_call_id);
+                        if (toolMessageId) {
+                          const currentMsgs = useChatStore.getState().messages;
+                          const toolMsg = currentMsgs.find((m) => m.id === toolMessageId);
+                          if (toolMsg && toolMsg.type === 'tool_call') {
+                            updateMessage(toolMessageId, {
+                              toolCall: {
+                                ...toolMsg.toolCall,
+                                output: parsed.tool_output,
+                              },
+                              isStreaming: false,
+                            });
+                          }
+                        }
+                      }
+                      break;
+
+                    case 'done':
+                      if (parsed.messages && Array.isArray(parsed.messages)) {
+                        doneMessages = parsed.messages;
+                      }
+                      break;
+
+                    case 'stopped':
+                      // Stream stopped by user
+                      break;
+
+                    default:
+                      // console.warn('Unknown SSE event type:', parsed.type, parsed);
+                      break;
                   }
                 } catch (e) {
-                  // 忽略解析错误，但记录日志以便调试
                   console.warn('Failed to parse SSE data:', data, e);
                 }
               }
@@ -165,162 +233,165 @@ export const useChat = () => {
           }
         }
 
-        // 等待一小段时间确保后端保存完成
-        if (streamDone) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-
         // 如果是新会话，通知父组件
         if (newThreadId && !currentConversation && onNewConversation) {
           onNewConversation(newThreadId);
         }
 
-        // 流式完成后，重新加载消息以获取实际的数据库ID
-        const targetThreadId = currentConversation?.thread_id || newThreadId;
-        if (targetThreadId) {
-          const messagesResponse = await request.get(`/conversations/${targetThreadId}/messages`, {
-            params: { page_size: 1000 }, // 设置足够大的page_size以获取所有消息
-          });
-          // 解析 BaseResponse 包装的数据（现在返回 PageResponse 格式）
-          if (messagesResponse.data.success && messagesResponse.data.data) {
-            const normalizeRole = (role: string): 'user' | 'assistant' | 'system' => {
-              if (role === 'ai' || role === 'assistant') return 'assistant';
-              if (role === 'human' || role === 'user') return 'user';
-              return role as 'user' | 'assistant' | 'system';
-            };
-            // 从 PageResponse 中提取 items 数组
-            const messageItems = messagesResponse.data.data.items || messagesResponse.data.data;
-            const messages = messageItems
-              .map((msg: MessageResponse) => ({
-                id: msg.id,
-                role: normalizeRole(msg.role),
-                content: msg.content,
-                created_at: msg.created_at,
-                metadata: msg.metadata || {},
-              }))
-              .sort((a: any, b: any) => {
-                const timeDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-                return timeDiff !== 0 ? timeDiff : a.id - b.id;
-              });
-            useChatStore.getState().setMessages(messages);
-          }
+        // 流式结束后，确保所有消息的 isStreaming 状态为 false
+        if (currentAssistantMessageIdRef.current) {
+          updateMessage(currentAssistantMessageIdRef.current, { isStreaming: false });
         }
 
-        setStreamingMessageId(null);
+        // 标记所有工具调用消息为完成状态，并删除空的 AI 消息
+        const currentMsgs = useChatStore.getState().messages;
+        const filteredMessages = currentMsgs.filter((msg) => {
+          // 删除空的 AI 消息（没有内容的 assistant 消息）
+          if (msg.type === 'assistant' && !msg.content.trim()) {
+            return false;
+          }
+          return true;
+        }).map((msg) => {
+          // 标记所有消息为完成状态
+          if (msg.isStreaming) {
+            return { ...msg, isStreaming: false };
+          }
+          return msg;
+        });
+        setMessages(filteredMessages);
+
+        // 流式结束后，用后端返回的完整消息替换前端消息
+        const targetThreadId = currentConversation?.thread_id || newThreadId;
+        if (targetThreadId && doneMessages && doneMessages.length > 0) {
+          const normalizedMessages = normalizeBackendMessages(doneMessages);
+
+          // 保留用户消息之前的历史消息
+          let lastUserIndex = -1;
+          for (let i = currentMsgs.length - 1; i >= 0; i--) {
+            if (currentMsgs[i].type === 'user') {
+              lastUserIndex = i;
+              break;
+            }
+          }
+          const previousMessages = lastUserIndex > 0 ? currentMsgs.slice(0, lastUserIndex) : [];
+
+          setMessages([...previousMessages, ...normalizedMessages]);
+        }
       } catch (error: any) {
         console.error('Failed to send message:', error);
-        // 如果是用户主动取消，不显示错误消息
         if (error.name !== 'AbortError') {
-          updateMessage(assistantMessageId, '抱歉，发送消息时出现错误。');
+          // 添加错误消息
+          const errorMessage: AssistantMessage = {
+            id: Date.now() + 1,
+            type: 'assistant',
+            content: '抱歉，发送消息时出现错误。',
+            created_at: new Date().toISOString(),
+          };
+          addMessage(errorMessage);
         }
-        setStreamingMessageId(null);
       } finally {
         setIsSending(false);
         abortControllerRef.current = null;
+        currentAssistantMessageIdRef.current = null;
+        toolCallMessagesMap.current.clear();
+        incompleteLine.current = '';
       }
     },
-    [currentConversation, isSending, addMessage, updateMessage, setIsSending, abortControllerRef]
+    [currentConversation, isSending, addMessage, updateMessage, setIsSending, setMessages]
   );
 
-  // 发送消息（非流式）
-  const sendMessage = useCallback(
-    async (content: string) => {
-      if (!content.trim() || isSending) return;
-
-      setIsSending(true);
-
-      // 添加用户消息
-      const userMessage = {
-        id: Date.now(),
-        role: 'user' as const,
-        content,
-        created_at: new Date().toISOString(),
-      };
-      addMessage(userMessage);
-
-      try {
-        const requestData: ChatRequest = {
-          message: content,
-          thread_id: currentConversation?.thread_id || null,
-        };
-
-        const response = await request.post('/chat', requestData);
-
-        // 解析 BaseResponse 包装的数据
-        if (response.data.success && response.data.data) {
-          const data = response.data.data;
-
-          // 添加助手消息
-          const assistantMessage = {
-            id: Date.now() + 1,
-            role: 'assistant' as const,
-            content: data.response,
-            created_at: new Date().toISOString(),
-          };
-          addMessage(assistantMessage);
-
-          // 重新加载消息以获取实际的数据库ID
-          if (data.thread_id) {
-            const messagesResponse = await request.get(`/conversations/${data.thread_id}/messages`, {
-              params: { page_size: 1000 }, // 设置足够大的page_size以获取所有消息
-            });
-            if (messagesResponse.data.success && messagesResponse.data.data) {
-              const normalizeRole = (role: string): 'user' | 'assistant' | 'system' => {
-                if (role === 'ai' || role === 'assistant') return 'assistant';
-                if (role === 'human' || role === 'user') return 'user';
-                return role as 'user' | 'assistant' | 'system';
-              };
-              // 从 PageResponse 中提取 items 数组
-              const messageItems = messagesResponse.data.data.items || messagesResponse.data.data;
-              const messages = messageItems
-                .map((msg: MessageResponse) => ({
-                  id: msg.id,
-                  role: normalizeRole(msg.role),
-                  content: msg.content,
-                  created_at: msg.created_at,
-                  metadata: msg.metadata || {},
-                }))
-                .sort((a: any, b: any) => {
-                  const timeDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-                  return timeDiff !== 0 ? timeDiff : a.id - b.id;
-                });
-              useChatStore.getState().setMessages(messages);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Failed to send message:', error);
-        const errorMessage = {
-          id: Date.now() + 1,
-          role: 'assistant' as const,
-          content: '抱歉，发送消息时出现错误。',
-          created_at: new Date().toISOString(),
-        };
-        addMessage(errorMessage);
-      } finally {
-        setIsSending(false);
-      }
-    },
-    [currentConversation, isSending, addMessage, setIsSending]
-  );
-
-  // 停止流式响应
   const stopStreaming = useCallback(() => {
     if (abortControllerRef.current) {
-      // 中止 fetch 请求
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-      setStreamingMessageId(null);
+
+      // 标记所有流式消息为完成状态
+      const currentMsgs = useChatStore.getState().messages;
+      const streamingMessages = currentMsgs.filter((m) => m.isStreaming);
+      streamingMessages.forEach((msg) => {
+        updateMessage(msg.id, { isStreaming: false });
+      });
+
       setIsSending(false);
+      currentAssistantMessageIdRef.current = null;
+      toolCallMessagesMap.current.clear();
+      incompleteLine.current = '';
     }
-  }, [abortControllerRef, setIsSending]);
+  }, [setIsSending, updateMessage]);
 
   return {
     messages,
     isSending,
-    streamingMessageId,
-    sendMessage,
     sendMessageStream,
     stopStreaming,
   };
 };
+
+/**
+ * 将后端消息格式转换为前端消息格式
+ */
+function normalizeBackendMessages(backendMessages: any[]): Message[] {
+  const messages: Message[] = [];
+
+  // 按照 _order_index 排序
+  const sortedMessages = [...backendMessages].sort((a, b) => {
+    const timeDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (timeDiff === 0) {
+      return (a.metadata?._order_index || 0) - (b.metadata?._order_index || 0);
+    }
+    return timeDiff;
+  });
+
+  for (const msg of sortedMessages) {
+    const role = normalizeRole(msg.role);
+
+    // 跳过 ToolMessage 类型（它们已经合并到 AI 消息的 tool_calls 中）
+    if (msg.type === 'ToolMessage') {
+      continue;
+    }
+
+    if (role === 'user') {
+      messages.push({
+        id: msg.id || Date.now() + Math.random(),
+        type: 'user',
+        content: msg.content || '',
+        created_at: msg.created_at || new Date().toISOString(),
+      });
+    } else if (role === 'assistant') {
+      // 如果有工具调用，先添加工具调用消息
+      if (msg.metadata?.tool_calls && msg.metadata.tool_calls.length > 0) {
+        for (const toolCall of msg.metadata.tool_calls) {
+          messages.push({
+            id: Date.now() + Math.random(),
+            type: 'tool_call',
+            created_at: msg.created_at || new Date().toISOString(),
+            toolCall: {
+              id: toolCall.id || '',
+              name: toolCall.name || '',
+              input: toolCall.input,
+              output: toolCall.output,
+            },
+          });
+        }
+      }
+
+      // 然后添加 AI 消息（如果有内容）
+      if (msg.content && msg.content.trim()) {
+        messages.push({
+          id: msg.id || Date.now() + Math.random(),
+          type: 'assistant',
+          content: msg.content,
+          created_at: msg.created_at || new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  return messages;
+}
+
+function normalizeRole(role: string): 'user' | 'assistant' | 'system' {
+  if (role === 'ai' || role === 'assistant') return 'assistant';
+  if (role === 'human' || role === 'user') return 'user';
+  return role as 'user' | 'assistant' | 'system';
+}

@@ -8,13 +8,14 @@ import uuid
 
 from fastapi import APIRouter, Depends
 from loguru import logger
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.chat import serialize_messages
 from app.core.database import get_db
 from app.core.deps import CurrentUser
 from app.core.exceptions import raise_internal_error, raise_not_found_error
-from app.core.lifespan import get_compiled_graph
+from app.core.lifespan import get_cached_graph, get_compiled_graph
 from app.models import Conversation, Message
 from app.models.base import BasePageQuery, BaseResponse, PageResponse
 from app.schemas import (
@@ -386,31 +387,23 @@ async def reset_conversation(
     conversation = await verify_conversation_ownership(thread_id, current_user.id, db)
 
     try:
-        # 1. 删除 LangGraph 检查点
+        # 删除 LangGraph 检查点（消息存储在 checkpoint 中）
         from app.core.checkpointer import delete_thread_checkpoints
 
         await delete_thread_checkpoints(thread_id)
         logger.info(f"✅ Deleted LangGraph checkpoints for thread: {thread_id}")
 
-        # 2. 删除所有消息记录
-        result = await db.execute(delete(Message).where(Message.thread_id == thread_id))
-        # 获取删除的行数（SQLAlchemy 2.0+ 的 Result 对象有 rowcount 属性）
-        deleted_count = getattr(result, "rowcount", 0)
-        logger.info(f"✅ Deleted {deleted_count} messages for thread: {thread_id}")
-
-        # 3. 更新会话时间戳
+        # 更新会话时间戳
         conversation.update_time = utc_now()
-
         await db.commit()
 
         return BaseResponse(
             success=True,
             code=200,
-            msg=f"会话已重置，删除了 {deleted_count} 条消息",
+            msg="会话已重置",
             data={
                 "status": "reset",
                 "thread_id": thread_id,
-                "deleted_count": deleted_count,
             },
         )
 
@@ -431,7 +424,7 @@ async def get_messages(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    获取会话消息历史
+    获取会话消息历史（从 LangGraph checkpoint 读取）
 
     Args:
         thread_id: 线程ID
@@ -443,32 +436,42 @@ async def get_messages(
         PageResponse[MessageResponse]: 分页的消息列表
     """
     # 验证会话所有权
-    await verify_conversation_ownership(thread_id, current_user.id, db)
+    conversation = await verify_conversation_ownership(thread_id, current_user.id, db)
 
-    # 获取总数
-    count_result = await db.execute(select(func.count(Message.id)).where(Message.thread_id == thread_id))
-    total = count_result.scalar() or 0
+    # 从 LangGraph checkpoint 获取消息
+    config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
+    try:
+        compiled_graph = await get_cached_graph(user_id=current_user.id)
+        state = await compiled_graph.aget_state(config)
+        all_messages = state.values.get("messages", []) if state and state.values else []
+    except Exception as e:
+        logger.error(f"Failed to get messages from checkpoint: {e}")
+        all_messages = []
 
-    # 分页查询
-    result = await db.execute(
-        select(Message)
-        .where(Message.thread_id == thread_id)
-        .order_by(Message.create_time.desc())
-        .offset(page_query.offset)
-        .limit(page_query.limit)
-    )
-    messages = result.scalars().all()
+    # 序列化所有消息
+    serialized_messages = serialize_messages(all_messages)
+
+    # 转换为 MessageResponse 格式（使用索引作为 id，使用会话创建时间作为基准时间）
+    from datetime import timedelta
+
+    base_time = conversation.create_time
 
     message_list = [
         MessageResponse(
-            id=msg.id,
-            role=msg.role,
-            content=msg.content,
-            metadata=msg.meta_data or {},
-            created_at=msg.create_time,
+            id=idx,
+            role=msg["role"],
+            content=msg["content"],
+            metadata=msg.get("metadata", {}),  # 直接使用 metadata 字段
+            created_at=base_time + timedelta(seconds=idx),  # 使用索引生成递增时间
         )
-        for msg in reversed(list(messages))
+        for idx, msg in enumerate(serialized_messages)
     ]
+
+    # 手动分页
+    total = len(message_list)
+    start_idx = page_query.offset
+    end_idx = start_idx + page_query.limit
+    paginated_messages = message_list[start_idx:end_idx]
 
     return BaseResponse(
         success=True,
@@ -478,7 +481,7 @@ async def get_messages(
             page_num=page_query.page_num,
             page_size=page_query.page_size,
             total=total,
-            items=message_list,
+            items=paginated_messages,
         ),
     )
 
@@ -541,7 +544,7 @@ async def export_conversation(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    导出会话数据
+    导出会话数据（从 LangGraph checkpoint 读取）
 
     Args:
         thread_id: 线程ID
@@ -553,19 +556,20 @@ async def export_conversation(
     # 验证会话所有权
     conversation = await verify_conversation_ownership(thread_id, current_user.id, db)
 
-    messages_result = await db.execute(
-        select(Message).where(Message.thread_id == thread_id).order_by(Message.create_time)
-    )
-    messages = messages_result.scalars().all()
-
-    # 获取 LangGraph 状态
+    # 获取 LangGraph 状态和消息
     config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
     try:
-        compiled_graph = get_compiled_graph()
+        compiled_graph = await get_cached_graph(user_id=current_user.id)
         state = await compiled_graph.aget_state(config)
         state_values = state.values
-    except Exception:
+
+        # 从 checkpoint 获取消息并序列化
+        all_messages = state.values.get("messages", []) if state and state.values else []
+        serialized_messages = serialize_messages(all_messages)
+    except Exception as e:
+        logger.warning(f"Failed to get state: {e}")
         state_values = None
+        serialized_messages = []
 
     return BaseResponse(
         success=True,
@@ -580,15 +584,7 @@ async def export_conversation(
                 "created_at": conversation.create_time.isoformat(),
                 "updated_at": conversation.update_time.isoformat(),
             },
-            messages=[
-                {
-                    "role": msg.role,
-                    "content": msg.content,
-                    "metadata": msg.meta_data or {},
-                    "created_at": msg.create_time.isoformat(),
-                }
-                for msg in messages
-            ],
+            messages=serialized_messages,
             state=state_values,
         ),
     )
@@ -603,7 +599,7 @@ async def import_conversation(
     ),
 ):
     """
-    导入会话数据
+    导入会话数据（仅恢复到 LangGraph checkpoint）
 
     Args:
         request: 导入请求
@@ -623,27 +619,17 @@ async def import_conversation(
         meta_data=data["conversation"].get("metadata", {}),
     )
     db.add(conversation)
-
-    # 导入消息
-    for msg_data in data["messages"]:
-        message = Message(
-            thread_id=thread_id,
-            role=msg_data["role"],
-            content=msg_data["content"],
-            meta_data=msg_data.get("metadata", {}),
-        )
-        db.add(message)
-
     await db.commit()
 
-    # 恢复 LangGraph 状态
+    # 恢复 LangGraph 状态（消息会自动包含在状态中）
     if "state" in data and data["state"]:
         config = {"configurable": {"thread_id": thread_id, "user_id": str(current_user.id)}}
         try:
-            compiled_graph = get_compiled_graph()
+            compiled_graph = await get_cached_graph(user_id=current_user.id)
             await compiled_graph.aupdate_state(config, data["state"])
         except Exception as e:
             logger.warning(f"Could not restore state: {e}")
+            raise_internal_error(f"导入会话失败: {str(e)}")
 
     return BaseResponse(
         success=True,

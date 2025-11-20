@@ -72,6 +72,18 @@ export interface BaseResponseConversationResponse {
   err?: BaseResponseConversationResponseErr;
 }
 
+export type BaseResponseFileListResponseData = FileListResponse | null;
+
+export type BaseResponseFileListResponseErr = FileListResponse | null;
+
+export interface BaseResponseFileListResponse {
+  success: boolean;
+  code: number;
+  msg: string;
+  data?: BaseResponseFileListResponseData;
+  err?: BaseResponseFileListResponseErr;
+}
+
 export interface BaseResponseNoneType {
   success: boolean;
   code: number;
@@ -140,6 +152,18 @@ export interface BaseResponseToken {
   err?: BaseResponseTokenErr;
 }
 
+export type BaseResponseUploadResponseData = UploadResponse | null;
+
+export type BaseResponseUploadResponseErr = UploadResponse | null;
+
+export interface BaseResponseUploadResponse {
+  success: boolean;
+  code: number;
+  msg: string;
+  data?: BaseResponseUploadResponseData;
+  err?: BaseResponseUploadResponseErr;
+}
+
 export type BaseResponseUserResponseData = UserResponse | null;
 
 export type BaseResponseUserResponseErr = UserResponse | null;
@@ -192,20 +216,21 @@ export interface BaseResponseDict {
   err?: BaseResponseDictErr;
 }
 
-export type BaseResponseListDictStrAnyDataAnyOfItem = { [key: string]: unknown };
+export type BaseResponseListStrData = string[] | null;
 
-export type BaseResponseListDictStrAnyData = BaseResponseListDictStrAnyDataAnyOfItem[] | null;
+export type BaseResponseListStrErr = string[] | null;
 
-export type BaseResponseListDictStrAnyErrAnyOfItem = { [key: string]: unknown };
-
-export type BaseResponseListDictStrAnyErr = BaseResponseListDictStrAnyErrAnyOfItem[] | null;
-
-export interface BaseResponseListDictStrAny {
+export interface BaseResponseListStr {
   success: boolean;
   code: number;
   msg: string;
-  data?: BaseResponseListDictStrAnyData;
-  err?: BaseResponseListDictStrAnyErr;
+  data?: BaseResponseListStrData;
+  err?: BaseResponseListStrErr;
+}
+
+export interface BodyUploadFileApiV1FilesUploadPost {
+  /** 要上传的文件 */
+  file: Blob;
 }
 
 /**
@@ -230,6 +255,8 @@ export interface ChatRequest {
   metadata?: ChatRequestMetadata;
 }
 
+export type ChatResponseMessagesItem = { [key: string]: unknown };
+
 /**
  * 对话响应
  */
@@ -240,6 +267,8 @@ export interface ChatResponse {
   response: string;
   /** 执行时长(毫秒) */
   duration_ms: number;
+  /** 本轮对话的所有消息（包括工具调用） */
+  messages?: ChatResponseMessagesItem[];
 }
 
 export type CheckpointResponseCheckpointsItem = { [key: string]: unknown };
@@ -329,6 +358,23 @@ export interface ConversationUpdate {
   title?: ConversationUpdateTitle;
   /** 元数据 */
   metadata?: ConversationUpdateMetadata;
+}
+
+/**
+ * 文件信息
+ */
+export interface FileInfo {
+  filename: string;
+  size: number;
+  path: string;
+}
+
+/**
+ * 文件列表响应
+ */
+export interface FileListResponse {
+  files: FileInfo[];
+  total: number;
 }
 
 export interface HTTPValidationError {
@@ -452,6 +498,16 @@ export interface Token {
   access_token: string;
   refresh_token: string;
   token_type?: string;
+}
+
+/**
+ * 上传响应
+ */
+export interface UploadResponse {
+  filename: string;
+  path: string;
+  size: number;
+  message: string;
 }
 
 /**
@@ -963,10 +1019,10 @@ Args:
     db: 数据库会话
 
 Returns:
-    list[ModelInfo]: 可用模型列表
+    list[str]: 可用模型 ID 列表
  * @summary List Available Models
  */
-export const listAvailableModelsApiV1UsersModelsAvailableGet = <TData = AxiosResponse<BaseResponseListDictStrAny>>(
+export const listAvailableModelsApiV1UsersModelsAvailableGet = <TData = AxiosResponse<BaseResponseListStr>>(
   options?: AxiosRequestConfig
 ): Promise<TData> => {
   return axios.get('/api/v1/users/models/available', options);
@@ -1178,7 +1234,7 @@ export const resetConversationApiV1ConversationsThreadIdResetPost = <TData = Axi
 };
 
 /**
- * 获取会话消息历史
+ * 获取会话消息历史（从 LangGraph checkpoint 读取）
 
 Args:
     thread_id: 线程ID
@@ -1263,6 +1319,125 @@ export const getUserStatsApiV1ConversationsUsersStatsGet = <TData = AxiosRespons
 };
 
 /**
+ * 上传文件到用户的工作目录
+
+Args:
+    file: 上传的文件
+    current_user: 当前登录用户
+
+Returns:
+    UploadResponse: 上传结果
+ * @summary Upload File
+ */
+export const uploadFileApiV1FilesUploadPost = <TData = AxiosResponse<BaseResponseUploadResponse>>(
+  bodyUploadFileApiV1FilesUploadPost: BodyUploadFileApiV1FilesUploadPost,
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  const formData = new FormData();
+  formData.append('file', bodyUploadFileApiV1FilesUploadPost.file);
+
+  return axios.post('/api/v1/files/upload', formData, options);
+};
+
+/**
+ * 列出用户工作目录中的所有文件
+
+Args:
+    current_user: 当前登录用户
+
+Returns:
+    FileListResponse: 文件列表
+ * @summary List Files
+ */
+export const listFilesApiV1FilesListGet = <TData = AxiosResponse<BaseResponseFileListResponse>>(
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  return axios.get('/api/v1/files/list', options);
+};
+
+/**
+ * 读取用户工作目录中的文件内容
+
+Args:
+    filename: 文件名
+    current_user: 当前登录用户
+
+Returns:
+    str: 文件内容
+ * @summary Read File
+ */
+export const readFileApiV1FilesReadFilenameGet = <TData = AxiosResponse<unknown>>(
+  filename: string,
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  return axios.get(`/api/v1/files/read/${filename}`, options);
+};
+
+/**
+ * 删除用户工作目录中的文件
+
+Args:
+    filename: 文件名
+    current_user: 当前登录用户
+
+Returns:
+    dict: 删除结果
+ * @summary Delete File
+ */
+export const deleteFileApiV1FilesFilenameDelete = <TData = AxiosResponse<unknown>>(
+  filename: string,
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  return axios.delete(`/api/v1/files/${filename}`, options);
+};
+
+/**
+ * 清空用户工作目录中的所有文件
+
+Args:
+    current_user: 当前登录用户
+
+Returns:
+    dict: 清空结果
+ * @summary Clear All Files
+ */
+export const clearAllFilesApiV1FilesDelete = <TData = AxiosResponse<unknown>>(
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  return axios.delete('/api/v1/files', options);
+};
+
+/**
+ * 处理 favicon 请求
+ * @summary Serve Favicon
+ */
+export const serveFaviconWebFaviconSvgGet = <TData = AxiosResponse<unknown>>(
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  return axios.get('/web/favicon.svg', options);
+};
+
+/**
+ * 处理 logo 请求
+ * @summary Serve Logo
+ */
+export const serveLogoWebLogoSvgGet = <TData = AxiosResponse<unknown>>(
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  return axios.get('/web/logo.svg', options);
+};
+
+/**
+ * 处理 readme logo 请求
+ * @summary Serve Logo Readme
+ */
+export const serveLogoReadmeWebLogoReadmeSvgGet = <TData = AxiosResponse<unknown>>(
+  options?: AxiosRequestConfig
+): Promise<TData> => {
+  return axios.get('/web/logo_readme.svg', options);
+};
+
+/**
  * 处理 SPA 路由，所有路径都返回 index.html
  * @summary Serve Spa
  */
@@ -1287,7 +1462,7 @@ export type UpdateUserSettingsApiV1UsersSettingsPutResult = AxiosResponse<BaseRe
 export type GetUserApiV1UsersUserIdGetResult = AxiosResponse<BaseResponseUserResponse>;
 export type UpdateUserApiV1UsersUserIdPutResult = AxiosResponse<BaseResponseUserResponse>;
 export type DeleteUserApiV1UsersUserIdDeleteResult = AxiosResponse<BaseResponseNoneType>;
-export type ListAvailableModelsApiV1UsersModelsAvailableGetResult = AxiosResponse<BaseResponseListDictStrAny>;
+export type ListAvailableModelsApiV1UsersModelsAvailableGetResult = AxiosResponse<BaseResponseListStr>;
 export type ChatApiV1ChatPostResult = AxiosResponse<BaseResponseChatResponse>;
 export type ChatStreamApiV1ChatStreamPostResult = AxiosResponse<unknown>;
 export type StopChatApiV1ChatStopPostResult = AxiosResponse<unknown>;
@@ -1304,4 +1479,12 @@ export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetResult =
   AxiosResponse<BaseResponseCheckpointResponse>;
 export type SearchConversationsApiV1ConversationsSearchPostResult = AxiosResponse<BaseResponseSearchResponse>;
 export type GetUserStatsApiV1ConversationsUsersStatsGetResult = AxiosResponse<BaseResponseUserStatsResponse>;
+export type UploadFileApiV1FilesUploadPostResult = AxiosResponse<BaseResponseUploadResponse>;
+export type ListFilesApiV1FilesListGetResult = AxiosResponse<BaseResponseFileListResponse>;
+export type ReadFileApiV1FilesReadFilenameGetResult = AxiosResponse<unknown>;
+export type DeleteFileApiV1FilesFilenameDeleteResult = AxiosResponse<unknown>;
+export type ClearAllFilesApiV1FilesDeleteResult = AxiosResponse<unknown>;
+export type ServeFaviconWebFaviconSvgGetResult = AxiosResponse<unknown>;
+export type ServeLogoWebLogoSvgGetResult = AxiosResponse<unknown>;
+export type ServeLogoReadmeWebLogoReadmeSvgGetResult = AxiosResponse<unknown>;
 export type ServeSpaWebFullPathGetResult = AxiosResponse<unknown>;

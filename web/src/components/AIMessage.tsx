@@ -1,14 +1,13 @@
-import { BotIcon, CheckIcon, CopyIcon } from 'lucide-react';
+import { CheckIcon, CopyIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import type { Message } from '@/stores/chatStore';
+import type { AssistantMessage } from '@/stores/chatStore';
 import { formatTime } from '@/utils/date';
 
 interface AIMessageProps {
-  message: Message;
+  message: AssistantMessage & { role: 'assistant' };
   onCopy: (content: string, id: number) => void;
   copiedId: number | null;
 }
@@ -23,18 +22,9 @@ export const AIMessage = ({ message, onCopy, copiedId }: AIMessageProps) => {
           </ReactMarkdown>
           {message.isStreaming && (
             <span className="inline-flex gap-1 ml-2 items-center">
-              <span
-                className="w-2 h-2 bg-primary rounded-full animate-bounce"
-                style={{ animationDelay: '0ms' }}
-              />
-              <span
-                className="w-2 h-2 bg-primary rounded-full animate-bounce"
-                style={{ animationDelay: '150ms' }}
-              />
-              <span
-                className="w-2 h-2 bg-primary rounded-full animate-bounce"
-                style={{ animationDelay: '300ms' }}
-              />
+              <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
             </span>
           )}
         </div>

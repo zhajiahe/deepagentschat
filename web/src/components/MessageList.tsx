@@ -1,65 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
-import { MessageItem } from '@/components/MessageItem';
-import { MessageSkeleton } from '@/components/MessageSkeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { type Message, useChatStore } from '@/stores/chatStore';
-import { useUserSettingsStore } from '@/stores/userSettingsStore';
-import 'highlight.js/styles/github-dark.css';
+import { useChatStore, type Message } from '@/stores/chatStore';
+import { MessageSkeleton } from './MessageSkeleton';
+import { UserMessage } from './UserMessage';
+import { AIMessage } from './AIMessage';
+import { ToolCallMessage } from './ToolCallMessage';
 
 interface MessageListProps {
   messages: Message[];
-}
-
-// 扩展消息类型以支持工具调用消息
-interface ExpandedMessage extends Message {
-  isToolCall?: boolean;
-  toolCall?: {
-    name: string;
-    arguments?: any;
-    input?: any;
-    output?: any;
-  };
 }
 
 export const MessageList = ({ messages }: MessageListProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const { toast } = useToast();
-  const { settings } = useUserSettingsStore();
   const { isLoading } = useChatStore();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // 将消息展开，将工具调用作为独立的消息项
-  const expandedMessages: ExpandedMessage[] = [];
-  messages.forEach((message) => {
-    // 如果是 AI 消息且有工具调用，先显示工具调用
-    if (
-      (message.role === 'assistant' || message.role === 'ai') &&
-      settings.show_tool_calls &&
-      message.metadata?.tool_calls &&
-      message.metadata.tool_calls.length > 0
-    ) {
-      // 添加工具调用消息
-      message.metadata.tool_calls.forEach((toolCall, index) => {
-        expandedMessages.push({
-          ...message,
-          id: message.id * 1000 + index, // 生成唯一 ID
-          isToolCall: true,
-          toolCall: toolCall,
-        });
-      });
-    }
-    // 然后添加原始消息
-    expandedMessages.push(message);
-  });
-
   useEffect(() => {
     scrollToBottom();
-  }, [scrollToBottom]);
+  }, [messages]);
 
   const handleCopy = (content: string, id: number) => {
     navigator.clipboard.writeText(content);
@@ -85,14 +49,38 @@ export const MessageList = ({ messages }: MessageListProps) => {
   return (
     <ScrollArea className="flex-1 bg-background dark:bg-grokbg">
       <div className="py-6 space-y-6">
-        {expandedMessages.map((message) => (
-          <MessageItem
-            key={message.id}
-            message={message}
-            onCopy={handleCopy}
-            copiedId={copiedId}
-          />
-        ))}
+        {messages.map((message) => {
+          switch (message.type) {
+            case 'user':
+              return (
+                <UserMessage
+                  key={message.id}
+                  message={{ ...message, role: 'user' }}
+                  onCopy={handleCopy}
+                  copiedId={copiedId}
+                />
+              );
+            case 'assistant':
+              return (
+                <AIMessage
+                  key={message.id}
+                  message={{ ...message, role: 'assistant' }}
+                  onCopy={handleCopy}
+                  copiedId={copiedId}
+                />
+              );
+            case 'tool_call':
+              return (
+                <div key={message.id} className="max-w-3xl w-full mx-auto px-4 animate-slide-up">
+                  <div className="bg-orange-50 dark:bg-orange-950/30 rounded-grok px-5 py-4 text-foreground border border-orange-300 dark:border-orange-700">
+                    <ToolCallMessage toolCall={message.toolCall} messageId={message.id} isStreaming={message.isStreaming} />
+                  </div>
+                </div>
+              );
+            default:
+              return null;
+          }
+        })}
         <div ref={messagesEndRef} />
       </div>
     </ScrollArea>

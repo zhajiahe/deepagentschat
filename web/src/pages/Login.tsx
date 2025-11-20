@@ -73,7 +73,7 @@ export const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">登录</CardTitle>
-          <CardDescription className="text-center">登录到 AI Agent</CardDescription>
+          <CardDescription className="text-center">登录到 DeepAgentsChat</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>

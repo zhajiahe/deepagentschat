@@ -27,7 +27,11 @@ class Settings(BaseSettings):
     # LLM 配置
     OPENAI_API_KEY: str | None = None  # OpenAI API 密钥
     OPENAI_API_BASE: str | None = None  # OpenAI API 基础 URL
-    DEFAULT_LLM_MODEL: str = "Qwen/Qwen3-8B"  # 默认 LLM 模型
+    DEFAULT_LLM_MODEL: str = "qwen-plus"  # 默认 LLM 模型
+
+    # LangGraph 配置
+    LANGGRAPH_RECURSION_LIMIT: int = 1000  # 递归限制
+    LANGGRAPH_MAX_ITERATIONS: int = 100  # 最大迭代次数
 
     # 应用配置
     APP_NAME: str = "FastAPI Template"

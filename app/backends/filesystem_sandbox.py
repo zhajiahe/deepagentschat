@@ -1,5 +1,6 @@
 """FilesystemSandboxBackend: FilesystemBackend with command execution support."""
 
+import re
 import subprocess
 import uuid
 from pathlib import Path
@@ -7,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from deepagents.backends.filesystem import FilesystemBackend
 from deepagents.backends.protocol import ExecuteResponse, SandboxBackendProtocol
+from loguru import logger
 
 if TYPE_CHECKING:
     pass
@@ -87,7 +89,13 @@ class FilesystemSandboxBackend(FilesystemBackend, SandboxBackendProtocol):
 
         Note:
             Commands are executed with cwd set to self.cwd (root_dir).
+            In virtual_mode, virtual absolute paths (e.g. /file.txt) are
+            automatically translated to relative paths (e.g. ./file.txt).
         """
+        # 在 virtual_mode 下，转换命令中的虚拟绝对路径
+        if self.virtual_mode:
+            command = self._translate_virtual_paths(command)
+
         try:
             # Execute command with timeout and cwd
             result = subprocess.run(
@@ -132,3 +140,70 @@ class FilesystemSandboxBackend(FilesystemBackend, SandboxBackendProtocol):
                 exit_code=-1,
                 truncated=False,
             )
+
+    def _translate_virtual_paths(self, command: str) -> str:
+        """将命令中的虚拟绝对路径转换为相对路径
+
+        在 virtual_mode 下，Agent 使用的路径是虚拟的（如 /file.txt），
+        但 shell 命令在实际文件系统中执行。此方法将虚拟路径转换为
+        相对于 root_dir 的相对路径。
+
+        Examples:
+            "/file.txt" → "./file.txt"
+            "/dir/file.txt" → "./dir/file.txt"
+            "/usr/bin/python" → "/usr/bin/python" (系统路径不转换)
+
+        Args:
+            command: 原始命令
+
+        Returns:
+            转换后的命令
+        """
+        # 常见系统路径（不应被转换）
+        system_paths = {
+            "usr",
+            "etc",
+            "bin",
+            "lib",
+            "lib64",
+            "var",
+            "tmp",
+            "home",
+            "root",
+            "opt",
+            "sys",
+            "proc",
+            "dev",
+            "mnt",
+            "boot",
+            "srv",
+            "run",
+            "snap",
+            "sbin",
+        }
+
+        def replace_path(match):
+            full_path = match.group(0)
+            quote = match.group(1) or ""  # 保留引号
+            path = match.group(2)
+
+            # 检查是否是系统路径
+            first_segment = path.lstrip("/").split("/")[0]
+            if first_segment in system_paths:
+                return full_path  # 保持原样
+
+            # 转换为相对路径
+            relative_path = "./" + path.lstrip("/")
+            return f"{quote}{relative_path}{quote}"
+
+        # 匹配带或不带引号的绝对路径
+        # 支持: /path, "/path", '/path'
+        pattern = r'(["\']?)(/[\w\-./]+)\1'
+
+        translated = re.sub(pattern, replace_path, command)
+
+        # 记录转换（仅在实际发生转换时）
+        if translated != command:
+            logger.debug(f"[VirtualPath] Translated: {command} → {translated}")
+
+        return translated

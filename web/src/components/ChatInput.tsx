@@ -88,7 +88,10 @@ export const ChatInput = ({ onSend, onStop, onReset, disabled, isSending, showRe
                 onCheckedChange={handleToggleToolCalls}
                 title="显示工具调用信息"
               />
-              <Label htmlFor="show-tool-calls" className="text-xs text-muted-foreground dark:text-groksub cursor-pointer">
+              <Label
+                htmlFor="show-tool-calls"
+                className="text-xs text-muted-foreground dark:text-groksub cursor-pointer"
+              >
                 工具
               </Label>
             </div>
