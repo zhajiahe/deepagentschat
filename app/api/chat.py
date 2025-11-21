@@ -412,15 +412,15 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                 user_id=current_user.id,  # 使用 UUID，不转换为 int
             )
 
-            # 使用 astream 获取逐 token 流式输出
+            # 使用 astream 获取逐 token 流式输出 (同时监听 messages 和 updates 以优化延迟)
             # 用于累积工具调用的参数和消息内容
             tool_call_chunks: dict[str, dict] = {}  # {tool_call_id: {name, args_accumulated}}
             current_checkpoint_ns: str | None = None  # 当前消息的 checkpoint namespace
 
-            async for token, metadata in compiled_graph.astream(
+            async for mode, payload in compiled_graph.astream(
                 {"messages": [HumanMessage(content=request.message)]},
                 config=config,
-                stream_mode="messages",
+                stream_mode=["messages", "updates"],
             ):
                 # 检查是否被停止
                 if await task_manager.is_stopped(thread_id):
@@ -429,72 +429,105 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                     yield f"data: {json.dumps({'stopped': True, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
                     break
 
-                # token 是一个对象，包含 content_blocks 属性
-                # content_blocks 格式: [{'type': 'text', 'text': '...'}, {'type': 'tool_call_chunk', ...}, ...]
-                if hasattr(token, "content_blocks"):
-                    node_name = metadata.get("langgraph_node", "")
-                    checkpoint_ns = metadata.get("langgraph_checkpoint_ns", "")
+                if mode == "updates":
+                    # 监听 updates 事件，当 model 节点完成时立即发送 tool_input
+                    # payload 是一个字典 {node_name: values}
+                    if isinstance(payload, dict):
+                        # 检查是否有 model 节点的更新
+                        # 注意：根据 LangGraph 版本，key 可能是 "model" 或其他配置的节点名
+                        # 这里假设 LLM 节点名为 "model" (agent pattern 常用名)
+                        is_model_update = "model" in payload or any(k.endswith(":model") for k in payload.keys())
 
-                    # 检测新消息：checkpoint_ns 改变且是 model 节点且有内容
-                    if (
-                        checkpoint_ns
-                        and checkpoint_ns != current_checkpoint_ns
-                        and node_name == "model"
-                        and token.content_blocks
-                    ):
-                        # 新消息开始
-                        if current_checkpoint_ns is not None:
-                            # 在发送 message_end 之前，发送工具调用的完整参数
+                        if is_model_update and current_checkpoint_ns is not None:
+                            # Model 节点执行完成，立即发送累积的工具调用参数
                             for tool_call_id, tool_data in tool_call_chunks.items():
                                 try:
-                                    # 尝试解析 JSON 参数
                                     tool_input = json.loads(tool_data["args"]) if tool_data["args"] else {}
                                 except json.JSONDecodeError:
                                     tool_input = {"raw": tool_data["args"]}
 
+                                # 只有当还未发送过（或者为了保险起见重复发送，前端应去重）时才发送
+                                # 这里我们清空 accumulated args 或者标记已发送
+                                # 简单起见，我们发送并清空 list (但 message_end 还需要吗？)
                                 yield f"data: {json.dumps({'type': 'tool_input', 'tool_name': tool_data['name'], 'tool_call_id': tool_call_id, 'tool_input': tool_input, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
-                            # 发送消息结束事件
-                            yield f"data: {json.dumps({'type': 'message_end', 'message_id': current_checkpoint_ns, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
-                        # 发送消息开始事件
-                        current_checkpoint_ns = checkpoint_ns
-                        yield f"data: {json.dumps({'type': 'message_start', 'message_id': checkpoint_ns, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
 
-                    for block in token.content_blocks:
-                        if not isinstance(block, dict):
-                            continue
+                            # 清空 accumulators 以免重复发送
+                            tool_call_chunks.clear()
+                    continue
 
-                        block_type = block.get("type")
+                if mode == "messages":
+                    token, metadata = payload
 
-                        # 处理文本块
-                        if block_type == "text" and block.get("text"):
-                            # 添加 node_name 以便前端区分是 model 节点还是 tools 节点的内容
-                            yield f"data: {json.dumps({'type': 'content', 'content': block['text'], 'node': node_name, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                    # token 是一个对象，包含 content_blocks 属性
+                    # content_blocks 格式: [{'type': 'text', 'text': '...'}, {'type': 'tool_call_chunk', ...}, ...]
+                    if hasattr(token, "content_blocks"):
+                        node_name = metadata.get("langgraph_node", "")
+                        checkpoint_ns = metadata.get("langgraph_checkpoint_ns", "")
 
-                        # 处理工具调用块
-                        elif block_type == "tool_call_chunk":
-                            tool_call_id = block.get("id", "")
-                            tool_name = block.get("name")
-                            tool_args = block.get("args", "")
+                        # 检测新消息：checkpoint_ns 改变且是 model 节点且有内容
+                        if (
+                            checkpoint_ns
+                            and checkpoint_ns != current_checkpoint_ns
+                            and node_name == "model"
+                            and token.content_blocks
+                        ):
+                            # 新消息开始
+                            if current_checkpoint_ns is not None:
+                                # 在发送 message_end 之前，发送工具调用的完整参数 (如果 updates 没触发)
+                                for tool_call_id, tool_data in tool_call_chunks.items():
+                                    try:
+                                        # 尝试解析 JSON 参数
+                                        tool_input = json.loads(tool_data["args"]) if tool_data["args"] else {}
+                                    except json.JSONDecodeError:
+                                        tool_input = {"raw": tool_data["args"]}
 
-                            # 如果是新的工具调用（有 id 和 name）
-                            if tool_call_id and tool_name:
-                                if tool_call_id not in tool_call_chunks:
-                                    # 发送工具调用开始事件
-                                    tool_call_chunks[tool_call_id] = {
-                                        "name": tool_name,
-                                        "args": tool_args,
-                                    }
-                                    yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': tool_name, 'tool_call_id': tool_call_id, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
-                                else:
-                                    # 累积参数
-                                    tool_call_chunks[tool_call_id]["args"] += tool_args
-                            # 如果只有参数（继续累积）
-                            elif tool_args and tool_call_chunks:
-                                # 找到最后一个工具调用并累积参数
-                                last_tool_id = list(tool_call_chunks.keys())[-1]
-                                tool_call_chunks[last_tool_id]["args"] += tool_args
+                                    yield f"data: {json.dumps({'type': 'tool_input', 'tool_name': tool_data['name'], 'tool_call_id': tool_call_id, 'tool_input': tool_input, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                                # 发送消息结束事件
+                                yield f"data: {json.dumps({'type': 'message_end', 'message_id': current_checkpoint_ns, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
 
-                    # 注意：tool_input 事件已经在检测到新消息时发送（第439-446行），这里不再重复发送
+                                # 清空 chunks
+                                tool_call_chunks.clear()
+
+                            # 发送消息开始事件
+                            current_checkpoint_ns = checkpoint_ns
+                            yield f"data: {json.dumps({'type': 'message_start', 'message_id': checkpoint_ns, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+
+                        for block in token.content_blocks:
+                            if not isinstance(block, dict):
+                                continue
+
+                            block_type = block.get("type")
+
+                            # 处理文本块
+                            if block_type == "text" and block.get("text"):
+                                # 添加 node_name 以便前端区分是 model 节点还是 tools 节点的内容
+                                yield f"data: {json.dumps({'type': 'content', 'content': block['text'], 'node': node_name, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+
+                            # 处理工具调用块
+                            elif block_type == "tool_call_chunk":
+                                tool_call_id = block.get("id", "")
+                                tool_name = block.get("name")
+                                tool_args = block.get("args", "")
+
+                                # 如果是新的工具调用（有 id 和 name）
+                                if tool_call_id and tool_name:
+                                    if tool_call_id not in tool_call_chunks:
+                                        # 发送工具调用开始事件
+                                        tool_call_chunks[tool_call_id] = {
+                                            "name": tool_name,
+                                            "args": tool_args,
+                                        }
+                                        yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': tool_name, 'tool_call_id': tool_call_id, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
+                                    else:
+                                        # 累积参数
+                                        tool_call_chunks[tool_call_id]["args"] += tool_args
+                                # 如果只有参数（继续累积）
+                                elif tool_args and tool_call_chunks:
+                                    # 找到最后一个工具调用并累积参数
+                                    last_tool_id = list(tool_call_chunks.keys())[-1]
+                                    tool_call_chunks[last_tool_id]["args"] += tool_args
+
+                        # 注意：tool_input 事件已经在检测到新消息或 updates 时发送
 
             # 如果被停止，不更新会话时间
             if stopped:
@@ -545,7 +578,18 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
             yield f"data: {json.dumps({'stopped': True, 'thread_id': thread_id}, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"Stream error: {e}")
-            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            # 区分错误类型
+            error_msg = str(e)
+            error_code = "internal_error"
+
+            if "401" in error_msg or "Unauthorized" in error_msg:
+                error_code = "auth_error"
+            elif "429" in error_msg or "Rate limit" in error_msg:
+                error_code = "rate_limit_error"
+            elif "400" in error_msg:
+                error_code = "invalid_request"
+
+            yield f"data: {json.dumps({'error': error_msg, 'code': error_code}, ensure_ascii=False)}\n\n"
         finally:
             # 确保注销任务
             await task_manager.unregister_task(thread_id)

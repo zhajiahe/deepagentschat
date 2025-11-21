@@ -451,21 +451,36 @@ async def get_messages(
     # 序列化所有消息
     serialized_messages = serialize_messages(all_messages)
 
-    # 转换为 MessageResponse 格式（使用索引作为 id，使用会话创建时间作为基准时间）
+    # 转换为 MessageResponse 格式（优先使用真实 ID 和时间）
     from datetime import timedelta
 
     base_time = conversation.create_time
 
-    message_list = [
-        MessageResponse(
-            id=idx,
-            role=msg["role"],
-            content=msg["content"],
-            metadata=msg.get("metadata", {}),  # 直接使用 metadata 字段
-            created_at=base_time + timedelta(seconds=idx),  # 使用索引生成递增时间
+    message_list = []
+    for idx, msg in enumerate(serialized_messages):
+        # 尝试获取真实 ID
+        msg_id = msg.get("id") or str(idx)
+        if isinstance(msg_id, str) and msg_id.startswith("msg_"):
+            pass  # 已经是格式化的 ID
+
+        # 尝试从 metadata 获取真实时间
+        msg_created_at = None
+        if "created_at" in msg.get("metadata", {}):
+            msg_created_at = msg["metadata"]["created_at"]
+
+        if not msg_created_at:
+            # 如果没有真实时间，使用基于索引的递增时间
+            msg_created_at = base_time + timedelta(seconds=idx)
+
+        message_list.append(
+            MessageResponse(
+                id=msg_id,
+                role=msg["role"],
+                content=msg["content"],
+                metadata=msg.get("metadata", {}),
+                created_at=msg_created_at,
+            )
         )
-        for idx, msg in enumerate(serialized_messages)
-    ]
 
     # 手动分页
     total = len(message_list)
@@ -660,20 +675,17 @@ async def search_conversations(
     """
     # 使用 SQLite LIKE 搜索
     result = await db.execute(
-        select(Message)
+        select(Message, Conversation)
         .join(Conversation, Message.thread_id == Conversation.thread_id)
         .where(Message.content.like(f"%{request.query}%"), Conversation.user_id == current_user.id)
         .order_by(Message.create_time.desc())
         .offset(request.skip)
         .limit(request.limit)
     )
-    messages = result.scalars().all()
+    rows = result.all()
 
     results = []
-    for msg in messages:
-        conv_result = await db.execute(select(Conversation).where(Conversation.thread_id == msg.thread_id))
-        conversation = conv_result.scalar_one_or_none()
-
+    for msg, conversation in rows:
         results.append(
             {
                 "message_id": msg.id,

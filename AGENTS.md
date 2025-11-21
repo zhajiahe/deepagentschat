@@ -138,9 +138,38 @@ DEFAULT_LLM_MODEL=Qwen/Qwen3-8B
 6. **测试覆盖**: 为核心功能编写测试
 7. **代码审查**: 提交前运行 `make lint` 和 `make type-check`
 
+## Agent 配置
+
+### 使用 DeepAgents 默认后端
+项目使用 deepagents 的默认 StateBackend，无需自定义文件系统实现。
+
+在 `app/agent.py` 中：
+```python
+# 使用 deepagents 默认 backend（不需要显式配置）
+# deepagents 的 create_agent 会自动使用 StateBackend 作为默认后端
+agent: Runnable = create_agent(
+    model,
+    tools=[math_tool, *mcp_tools],
+    checkpointer=checkpointer,
+    middleware=[
+        TodoListMiddleware(),
+        PatchToolCallsMiddleware(),
+        SummarizationMiddleware(model=model, max_tokens_before_summary=170000, messages_to_keep=10),
+    ],
+).with_config({"recursion_limit": 1000})
+```
+
+### 文件管理
+- 文件存储使用本地文件系统：`/tmp/user_files/{user_id}`
+- 每个用户拥有独立的存储空间
+- 通过 `app/api/files.py` 提供文件上传/下载/删除等 API
+
 ## 常见问题
-### Q: 如何自定义 LangGraph 流程?
-A: 编辑 `app/core/graph.py` 中的 `create_graph()` 函数
+### Q: 如何自定义 Agent 工具?
+A: 在 `app/agent.py` 中添加新的 `@tool` 装饰的函数，并将其添加到 `tools` 列表中
 
 ### Q: 如何添加新的中间件?
 A: 在 `app/middleware/` 创建中间件，然后在 `app/main.py` 中注册
+
+### Q: 如何更改 Agent 的默认后端?
+A: DeepAgents 默认使用 StateBackend。如需自定义，可以在 `create_agent()` 中传入 `backend` 参数

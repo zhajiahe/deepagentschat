@@ -7,7 +7,6 @@
 import os
 from typing import Any
 
-from deepagents.middleware import FilesystemMiddleware
 from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -18,8 +17,6 @@ from langchain_core.runnables import Runnable
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
-
-from app.backends import FilesystemSandboxBackend
 
 load_dotenv()
 client = MultiServerMCPClient(
@@ -81,20 +78,18 @@ async def get_agent(
         max_completion_tokens=max_tokens,
         streaming=True,  # 启用流式输出
     )
-    tools = await client.get_tools()
-    # 为每个用户创建独立的工作目录
-    root_dir = f"/tmp/{user_id}" if user_id else "/tmp/default"
-    backend = FilesystemSandboxBackend(
-        root_dir=root_dir,
-        virtual_mode=True,  # 使用虚拟文件系统（内存）
-    )
+
+    # 获取 MCP 工具
+    mcp_tools = await client.get_tools()
+
+    # 使用 deepagents 默认 backend（不需要显式配置）
+    # deepagents 的 create_agent 会自动使用 StateBackend 作为默认后端
     agent: Runnable = create_agent(
         model,
-        tools=tools,
+        tools=[math_tool, *mcp_tools],
         checkpointer=checkpointer,
         middleware=[
             TodoListMiddleware(),
-            FilesystemMiddleware(backend=backend),
             PatchToolCallsMiddleware(),
             SummarizationMiddleware(model=model, max_tokens_before_summary=170000, messages_to_keep=10),
         ],

@@ -2,6 +2,7 @@
 文件管理 API 路由
 
 提供文件上传、下载、列表等功能
+使用本地文件系统存储（简化版本，不依赖自定义 backend）
 """
 
 import uuid
@@ -11,11 +12,14 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from loguru import logger
 from pydantic import BaseModel
 
-from app.backends import FilesystemSandboxBackend
 from app.core.deps import CurrentUser
 from app.models.base import BaseResponse
 
 router = APIRouter(prefix="/files", tags=["Files"])
+
+# 文件存储根目录
+STORAGE_ROOT = Path("/tmp/user_files")
+STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 class FileInfo(BaseModel):
@@ -42,20 +46,19 @@ class UploadResponse(BaseModel):
     message: str
 
 
-def get_user_backend(user_id: uuid.UUID) -> FilesystemSandboxBackend:
+def get_user_storage_path(user_id: uuid.UUID) -> Path:
     """
-    获取用户的文件系统后端
+    获取用户的存储目录
 
     Args:
         user_id: 用户 ID
 
     Returns:
-        FilesystemSandboxBackend: 用户的文件系统后端
+        Path: 用户存储目录路径
     """
-    return FilesystemSandboxBackend(
-        root_dir=f"/tmp/{user_id}",
-        virtual_mode=True,  # 使用虚拟模式，与 Agent 保持一致
-    )
+    user_path = STORAGE_ROOT / str(user_id)
+    user_path.mkdir(parents=True, exist_ok=True)
+    return user_path
 
 
 @router.post("/upload", response_model=BaseResponse[UploadResponse])
@@ -74,19 +77,21 @@ async def upload_file(
         UploadResponse: 上传结果
     """
     try:
-        # 读取文件内容
-        content = await file.read()
-
-        # 获取用户的后端
-        backend = get_user_backend(current_user.id)
+        # 获取用户存储目录
+        user_path = get_user_storage_path(current_user.id)
 
         # 确保文件名安全（移除路径分隔符）
         safe_filename = Path(file.filename or "unnamed").name
 
-        # 写入文件
-        backend.write(safe_filename, content.decode("utf-8") if content else "")
+        # 保存文件
+        file_path = user_path / safe_filename
+        content = await file.read()
 
-        logger.info(f"User {current_user.id} uploaded file: {safe_filename} ({len(content)} bytes)")
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        file_size = len(content)
+        logger.info(f"User {current_user.id} uploaded file: {safe_filename} ({file_size} bytes)")
 
         return BaseResponse(
             success=True,
@@ -94,45 +99,11 @@ async def upload_file(
             msg="文件上传成功",
             data=UploadResponse(
                 filename=safe_filename,
-                path=f"/tmp/{current_user.id}/{safe_filename}",
-                size=len(content),
-                message=f"文件 {safe_filename} 已上传到您的工作目录",
+                path=str(file_path),
+                size=file_size,
+                message=f"文件 {safe_filename} 已上传",
             ),
         )
-    except UnicodeDecodeError:
-        # 如果是二进制文件，直接写入原始字节
-        try:
-            # 对于二进制文件，我们需要直接写入文件系统
-            backend = get_user_backend(current_user.id)
-            safe_filename = Path(file.filename or "unnamed").name
-
-            # 使用 Path 直接写入二进制文件
-            file_path = Path(backend.cwd) / safe_filename
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # 重新读取文件（因为之前已经读过了）
-            await file.seek(0)
-            content = await file.read()
-
-            with open(file_path, "wb") as f:
-                f.write(content)
-
-            logger.info(f"User {current_user.id} uploaded binary file: {safe_filename} ({len(content)} bytes)")
-
-            return BaseResponse(
-                success=True,
-                code=200,
-                msg="文件上传成功",
-                data=UploadResponse(
-                    filename=safe_filename,
-                    path=str(file_path),
-                    size=len(content),
-                    message=f"文件 {safe_filename} 已上传到您的工作目录",
-                ),
-            )
-        except Exception as e:
-            logger.error(f"Failed to upload binary file: {e}")
-            raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}") from e
     except Exception as e:
         logger.error(f"Failed to upload file: {e}")
         raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}") from e
@@ -150,49 +121,16 @@ async def list_files(current_user: CurrentUser):
         FileListResponse: 文件列表
     """
     try:
-        backend = get_user_backend(current_user.id)
+        user_path = get_user_storage_path(current_user.id)
 
-        # 使用 execute 命令列出文件
-        result = backend.execute("find . -type f -exec ls -lh {} \\;")
-
-        if result.exit_code != 0:
-            logger.warning(f"Failed to list files for user {current_user.id}: {result.output}")
-            return BaseResponse(
-                success=True,
-                code=200,
-                msg="获取文件列表成功",
-                data=FileListResponse(files=[], total=0),
-            )
-
-        # 解析文件列表
         files = []
-        for line in result.output.strip().split("\n"):
-            if not line or line == "(no output)":
-                continue
-
-            parts = line.split()
-            if len(parts) >= 9:
-                size_str = parts[4]
-                filename = " ".join(parts[8:])
-
-                # 转换文件大小
-                try:
-                    if size_str.endswith("K"):
-                        size = int(float(size_str[:-1]) * 1024)
-                    elif size_str.endswith("M"):
-                        size = int(float(size_str[:-1]) * 1024 * 1024)
-                    elif size_str.endswith("G"):
-                        size = int(float(size_str[:-1]) * 1024 * 1024 * 1024)
-                    else:
-                        size = int(size_str)
-                except (ValueError, IndexError):
-                    size = 0
-
+        for file_path in user_path.iterdir():
+            if file_path.is_file():
                 files.append(
                     FileInfo(
-                        filename=Path(filename).name,
-                        size=size,
-                        path=filename,
+                        filename=file_path.name,
+                        size=file_path.stat().st_size,
+                        path=file_path.name,
                     )
                 )
 
@@ -220,13 +158,18 @@ async def read_file(filename: str, current_user: CurrentUser):
         str: 文件内容
     """
     try:
-        backend = get_user_backend(current_user.id)
+        user_path = get_user_storage_path(current_user.id)
 
         # 确保文件名安全
         safe_filename = Path(filename).name
+        file_path = user_path / safe_filename
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
 
         # 读取文件
-        content = backend.read(safe_filename)
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            content = f.read()
 
         return BaseResponse(
             success=True,
@@ -234,8 +177,8 @@ async def read_file(filename: str, current_user: CurrentUser):
             msg="读取文件成功",
             data={"filename": safe_filename, "content": content},
         )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=f"文件不存在: {filename}") from e
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to read file: {e}")
         raise HTTPException(status_code=500, detail=f"读取文件失败: {str(e)}") from e
@@ -254,16 +197,17 @@ async def delete_file(filename: str, current_user: CurrentUser):
         dict: 删除结果
     """
     try:
-        backend = get_user_backend(current_user.id)
+        user_path = get_user_storage_path(current_user.id)
 
         # 确保文件名安全
         safe_filename = Path(filename).name
+        file_path = user_path / safe_filename
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
 
         # 删除文件
-        result = backend.execute(f"rm -f {safe_filename}")
-
-        if result.exit_code != 0:
-            raise HTTPException(status_code=500, detail=f"删除文件失败: {result.output}")
+        file_path.unlink()
 
         logger.info(f"User {current_user.id} deleted file: {safe_filename}")
 
@@ -292,18 +236,14 @@ async def clear_all_files(current_user: CurrentUser):
         dict: 清空结果
     """
     try:
-        backend = get_user_backend(current_user.id)
+        user_path = get_user_storage_path(current_user.id)
 
-        # 列出所有文件
-        result_before = backend.execute("ls -1")
-        files_before = result_before.output.strip().split("\n") if result_before.output.strip() else []
-        file_count = len([f for f in files_before if f and f != "(no output)"])
-
-        # 删除所有文件（不删除目录）
-        result = backend.execute("find . -type f -delete")
-
-        if result.exit_code != 0:
-            raise HTTPException(status_code=500, detail=f"清空文件失败: {result.output}")
+        # 删除所有文件
+        file_count = 0
+        for file_path in user_path.iterdir():
+            if file_path.is_file():
+                file_path.unlink()
+                file_count += 1
 
         logger.info(f"User {current_user.id} cleared all files ({file_count} files deleted)")
 

@@ -22,14 +22,13 @@
 
 ## 📖 项目简介
 
-**DeepAgentsChat** 是一个基于 FastAPI + LangChain Agents + React 的现代化全栈 AI 应用模板。它不仅提供了完整的用户认证和对话系统，还集成了 **DeepAgents 中间件**，支持文件系统操作、工具调用、待办事项管理和对话摘要等高级功能。
+**DeepAgentsChat** 是一个基于 FastAPI + LangChain Agents + React 的现代化全栈 AI 应用模板。它不仅提供了完整的用户认证和对话系统，还集成了 **DeepAgents 中间件**，支持工具调用、待办事项管理和对话摘要等高级功能。
 
 ### ✨ 核心特性
 
 - 🤖 **LangChain Agents**：基于 LangChain v1 的 `create_agent` API，支持工具调用和中间件扩展
-- 🔧 **DeepAgents 中间件**：集成 `FilesystemMiddleware`、`TodoListMiddleware`、`SummarizationMiddleware`
-- 🗂️ **多用户文件隔离**：每个用户拥有独立的虚拟文件系统（`/tmp/{user_id}`）
-- 🏗️ **多种 Sandbox Backend**：支持 `StateSandboxBackend`（内存）、`FilesystemSandboxBackend`（本地）、`DockerSandboxBackend`（容器）
+- 🔧 **DeepAgents 中间件**：集成 `TodoListMiddleware`、`SummarizationMiddleware`
+- 🗂️ **多用户文件隔离**：每个用户拥有独立的文件存储空间（`/tmp/user_files/{user_id}`）
 - 🔐 **完整用户认证**：JWT 双令牌、用户注册/登录、权限管理
 - 💬 **流式对话系统**：SSE 流式响应、会话管理、状态持久化（LangGraph Checkpointer）
 - 📁 **文件浏览器**：右侧可折叠面板，支持文件上传/下载/删除/预览
@@ -123,10 +122,6 @@ deepagentschat/
 │   │   ├── conversations.py      # 会话管理
 │   │   ├── files.py              # 文件管理（上传/下载/删除）
 │   │   └── users.py              # 用户认证和管理
-│   ├── backends/                 # Sandbox Backend 实现
-│   │   ├── state_sandbox.py      # 内存沙箱
-│   │   ├── filesystem_sandbox.py # 文件系统沙箱
-│   │   └── docker_sandbox.py     # Docker 容器沙箱
 │   ├── core/                     # 核心配置和依赖
 │   │   ├── config.py             # 环境配置
 │   │   ├── database.py           # 数据库连接
@@ -155,11 +150,11 @@ deepagentschat/
 
 ### 🤖 AI Agent 能力
 
-- **工具调用**：支持数学计算、文件系统操作、MCP 工具等
+- **工具调用**：支持数学计算、MCP 工具等
 - **待办事项管理**：Agent 可自主创建和管理任务列表
 - **对话摘要**：自动总结长对话，节省 token
-- **文件系统操作**：读写文件、执行命令（沙箱隔离）
 - **流式响应**：逐 token 输出，提升用户体验
+- **DeepAgents 默认后端**：使用 StateBackend 存储临时数据
 
 ### 🔐 用户系统
 
@@ -170,7 +165,7 @@ deepagentschat/
 
 ### 📁 文件管理
 
-- **多用户隔离**：每个用户独立的虚拟文件系统
+- **多用户隔离**：每个用户独立的文件存储空间
 - **文件浏览器**：可视化文件管理界面
 - **上传/下载**：支持文件上传和下载
 - **文件预览**：支持文本文件在线预览
@@ -223,7 +218,7 @@ pnpm lint         # 代码检查
 |------|------|------|
 | **FastAPI** | 0.115+ | 异步 Web 框架 |
 | **LangChain** | 1.0+ | Agent 框架和工具调用 |
-| **DeepAgents** | Latest | 中间件（文件系统、待办事项、摘要） |
+| **DeepAgents** | Latest | 中间件（待办事项、摘要、默认后端） |
 | **SQLAlchemy** | 2.0+ | 异步 ORM |
 | **Alembic** | Latest | 数据库迁移 |
 | **Pydantic** | 2.0+ | 数据验证 |

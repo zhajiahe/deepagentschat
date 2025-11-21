@@ -4,6 +4,7 @@
 提供用户的CRUD操作和认证相关接口
 """
 
+import time
 import uuid
 
 import httpx
@@ -549,19 +550,17 @@ async def delete_user(
 # ==================== 模型管理接口 ====================
 
 
+# 简单的内存缓存: key -> (data, timestamp)
+_models_cache: dict[str, tuple[list[str], float]] = {}
+CACHE_TTL = 300  # 5 分钟
+
+
 @router.get("/models/available", response_model=BaseResponse[list[str]])
 async def list_available_models(_current_user: CurrentUser, db: DBSession):
     """
     获取可用的 LLM 模型列表
 
     从用户配置的 API 端点动态获取模型列表
-
-    Args:
-        _current_user: 当前登录用户
-        db: 数据库会话
-
-    Returns:
-        list[str]: 可用模型 ID 列表
     """
     # 获取用户设置
     result = await db.execute(select(UserSettings).where(UserSettings.user_id == _current_user.id))
@@ -581,13 +580,35 @@ async def list_available_models(_current_user: CurrentUser, db: DBSession):
     assert isinstance(base_url, str)
     base_url = base_url + "/models"
 
-    response = httpx.get(base_url, headers={"Authorization": f"Bearer {api_key}"})
+    # 检查缓存
+    cache_key = f"{base_url}:{api_key}"
+    if cache_key in _models_cache:
+        data, timestamp = _models_cache[cache_key]
+        if time.time() - timestamp < CACHE_TTL:
+            return BaseResponse[list[str]](
+                success=True,
+                code=200,
+                msg="获取模型列表成功(缓存)",
+                data=data,
+            )
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(base_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=10.0)
+    except httpx.TimeoutException:
+        raise_business_error("获取模型列表超时")
+    except Exception as e:
+        raise_business_error(f"获取模型列表失败: {str(e)}")
+
     if response.status_code != 200:
-        raise_business_error("获取模型列表失败")
+        raise_business_error(f"获取模型列表失败: {response.status_code}")
 
     models_data = response.json().get("data", [])
     # 提取模型 ID 列表
     model_ids = [model["id"] if isinstance(model, dict) else model for model in models_data]
+
+    # 更新缓存
+    _models_cache[cache_key] = (model_ids, time.time())
 
     return BaseResponse[list[str]](
         success=True,
