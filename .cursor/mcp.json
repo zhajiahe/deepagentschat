@@ -33,6 +33,10 @@
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"]
-    }
+    },
+    "langchain_doc": {
+            "url": "https://docs.langchain.com/mcp",
+            "transport": "streamable_http"
+        }
   }
 }

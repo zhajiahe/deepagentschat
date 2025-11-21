@@ -12,11 +12,12 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import TodoListMiddleware
 from langchain.agents.middleware.summarization import SummarizationMiddleware
-from langchain.tools import tool
 from langchain_core.runnables import Runnable
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
+
+from app.tools import ALL_TOOLS, UserContext
 
 load_dotenv()
 client = MultiServerMCPClient(
@@ -27,23 +28,6 @@ client = MultiServerMCPClient(
         }
     }
 )
-
-
-@tool
-def math_tool(expression: str) -> str:
-    """
-    Calculate the result of a mathematical expression.
-    Args:
-        expression: The mathematical expression to evaluate.
-
-    Returns:
-        The result of the expression as a string.
-    """
-    try:
-        result = eval(expression)
-        return str(result)
-    except Exception as e:
-        return f"Error: {e}"
 
 
 async def get_agent(
@@ -82,18 +66,18 @@ async def get_agent(
     # 获取 MCP 工具
     mcp_tools = await client.get_tools()
 
-    # 使用 deepagents 默认 backend（不需要显式配置）
-    # deepagents 的 create_agent 会自动使用 StateBackend 作为默认后端
+    # 使用 deepagents 默认 backend + 用户隔离工具
     agent: Runnable = create_agent(
         model,
-        tools=[math_tool, *mcp_tools],
+        tools=[*mcp_tools, *ALL_TOOLS],
         checkpointer=checkpointer,
+        context_schema=UserContext,  # 指定 context schema
         middleware=[
             TodoListMiddleware(),
             PatchToolCallsMiddleware(),
             SummarizationMiddleware(model=model, max_tokens_before_summary=170000, messages_to_keep=10),
         ],
-    ).with_config({"recursion_limit": 1000})  # 防止过早停止
+    ).with_config({"recursion_limit": 1000})
     return agent
 
 

@@ -29,6 +29,7 @@ from app.core.lifespan import get_cached_graph
 from app.models import Conversation, UserSettings
 from app.models.base import BaseResponse
 from app.schemas import ChatRequest, ChatResponse
+from app.tools import UserContext
 from app.utils.datetime import utc_now
 from app.utils.task_manager import task_manager
 
@@ -303,7 +304,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: AsyncSession
             compiled_graph.ainvoke(
                 {"messages": [HumanMessage(content=request.message)]},
                 config=config,
-                context=context,
+                context=UserContext(user_id=str(current_user.id)),  # 传递用户上下文
             )
         )
         await task_manager.register_task(thread_id, invoke_task)
@@ -420,6 +421,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
             async for mode, payload in compiled_graph.astream(
                 {"messages": [HumanMessage(content=request.message)]},
                 config=config,
+                context=UserContext(user_id=str(current_user.id)),  # 传递用户上下文
                 stream_mode=["messages", "updates"],
             ):
                 # 检查是否被停止

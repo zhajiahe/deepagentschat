@@ -1,202 +1,246 @@
 """
-Agent CLI Environment - LangChain Tool Implementation
-将 Shell 命令执行能力封装为 LangChain Tool
+Agent Tools - 支持用户隔离的工具集
+
+使用 ToolRuntime 实现可选的用户隔离：
+- 如果提供 user_id（通过 context），操作限制在用户目录
+- 如果未提供 user_id，使用公共目录
 """
 
-import os
-import subprocess
+import asyncio
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal
 
-from langchain.tools import BaseTool
-from pydantic import BaseModel, Field
+from langchain.tools import ToolRuntime, tool
 
-
-# ============ 输入模式定义 ============
-class ShellCommandInput(BaseModel):
-    """Shell 命令执行的输入参数"""
-
-    command: str = Field(description="要执行的 Bash 命令。支持管道、重定向等所有 Shell 特性")
-    timeout: int = Field(default=30, description="命令执行超时时间(秒)，默认30秒")
-
-
-class WriteFileInput(BaseModel):
-    """写入文件的输入参数"""
-
-    filename: str = Field(description="目标文件路径")
-    content: str = Field(description="要写入的文件内容")
+# 文件存储根目录
+STORAGE_ROOT = Path("/tmp/user_files")
+PUBLIC_DIR = STORAGE_ROOT / "public"  # 公共目录
+STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
 
 
-class ReadFileInput(BaseModel):
-    """读取文件的输入参数"""
+# ============ Context Schema ============
+@dataclass
+class UserContext:
+    """用户上下文，通过 ToolRuntime 自动注入"""
 
-    filename: str = Field(description="要读取的文件路径")
-    max_chars: int = Field(default=2000, description="最大读取字符数，超过会自动截断")
+    user_id: str
 
 
-# ============ 核心工具实现 ============
-class ShellExecutorTool(BaseTool):
-    """执行 Shell 命令的工具"""
-
-    name: str = "shell_executor"
-    description: str = """
-    执行 Linux Shell 命令。支持所有 Bash 特性：
-    - 文件操作: ls, cat, grep, sed, awk
-    - 数据处理: jq (JSON), sort, uniq
-    - 管道和重定向: | > >>
-    - Python 脚本: python3
-    - 网络请求: curl
-
-    示例:
-    - "ls -la | grep .py"
-    - "cat data.json | jq '.items[] | .name'"
-    - "python3 script.py > output.txt"
+def get_work_path(user_id: str | None = None) -> Path:
     """
-    args_schema: type[BaseModel] = ShellCommandInput
+    获取工作目录
 
-    def _run(self, command: str, timeout: int = 30) -> str:
-        """执行命令并返回结果"""
+    Args:
+        user_id: 用户 ID（可选），如果为 None 则返回公共目录
+
+    Returns:
+        Path: 工作目录路径
+    """
+    if user_id:
+        user_path = STORAGE_ROOT / str(user_id)
+        user_path.mkdir(parents=True, exist_ok=True)
+        return user_path
+    return PUBLIC_DIR
+
+
+def sanitize_path(user_id: str | None, filename: str) -> Path:
+    """
+    清理并验证文件路径
+
+    Args:
+        user_id: 用户 ID（可选）
+        filename: 文件名或相对路径
+
+    Returns:
+        Path: 安全的绝对路径
+
+    Raises:
+        ValueError: 如果路径试图逃逸工作目录
+    """
+    work_path = get_work_path(user_id)
+
+    # 移除路径中的危险字符和序列
+    safe_filename = filename.replace("../", "").replace("..\\", "")
+
+    # 构建完整路径
+    full_path = (work_path / safe_filename).resolve()
+
+    # 确保路径在工作目录内
+    if not str(full_path).startswith(str(work_path.resolve())):
+        raise ValueError(f"路径 '{filename}' 超出工作目录范围")
+
+    return full_path
+
+
+# ============ 工具实现 ============
+
+
+@tool(parse_docstring=True)
+async def shell_exec(command: str, timeout: int = 30, runtime: ToolRuntime[UserContext] = None) -> str:
+    """## 执行Bash命令
+    - **文件浏览**: `ls`, `tree`, `cat`, `head`, `tail`
+    - **搜索与处理**: `grep`, `sed`, `awk`, `jq` (处理 JSON)
+    - **编程环境**: `python` (用于复杂逻辑或数学计算)
+    - **网络**: `curl` (获取网页内容)
+
+    Args:
+        command: 要执行的 Bash 命令
+        timeout: 命令执行超时时间(秒)，默认30秒
+    """
+    try:
+        # 从 runtime context 获取 user_id（可能为 None）
+        user_id = runtime.context.user_id if runtime and runtime.context else None
+        work_path = get_work_path(user_id)
+
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            executable="/bin/bash",
+            cwd=str(work_path),
+        )
+
         try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, timeout=timeout, executable="/bin/bash"
-            )
-
-            output = result.stdout
-            if result.stderr:
-                output += f"\n[STDERR]:\n{result.stderr}"
-
-            if result.returncode != 0:
-                output += f"\n[Exit Code: {result.returncode}]"
-
-            # 限制输出长度，避免 Token 过多
-            if len(output) > 5000:
-                output = output[:5000] + f"\n\n... (输出过长，已截断，共 {len(output)} 字符)"
-
-            return output or "[命令执行成功，无输出]"
-
-        except subprocess.TimeoutExpired:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
             return f"[错误] 命令执行超时 (>{timeout}秒)"
-        except Exception as e:
-            return f"[错误] {str(e)}"
 
-    async def _arun(self, command: str, timeout: int = 30) -> str:
-        """异步执行 (使用同步实现)"""
-        return self._run(command, timeout)
+        output = stdout.decode("utf-8")
+        if stderr:
+            output += f"\n[STDERR]:\n{stderr.decode('utf-8')}"
+
+        if process.returncode != 0:
+            output += f"\n[Exit Code: {process.returncode}]"
+
+        if len(output) > 5000:
+            output = output[:5000] + f"\n\n... (输出过长，已截断，共 {len(output)} 字符)"
+
+        return output or "[命令执行成功，无输出]"
+
+    except Exception as e:
+        return f"[错误] {str(e)}"
 
 
-class WriteFileTool(BaseTool):
-    """安全写入文件的工具"""
+@tool(parse_docstring=True)
+async def write_file(
+    filename: str,
+    content: str,
+    mode: Literal["overwrite", "append"] = "overwrite",
+    runtime: ToolRuntime[UserContext] = None,
+) -> str:
+    """写入文件。
 
-    name: str = "write_file"
-    description: str = """
-    安全地将内容写入文件，自动处理转义和编码问题。
-    避免在 Shell 中手动处理复杂的引号转义。
-
-    示例:
-    - filename: "script.py", content: "print('hello world')"
-    - filename: "config.json", content: '{"key": "value"}'
+    Args:
+        filename: 文件名或相对路径
+        content: 要写入的文件内容
+        mode: 写入模式，"overwrite"(覆盖) 或 "append"(追加)
     """
-    args_schema: type[BaseModel] = WriteFileInput
+    try:
+        user_id = runtime.context.user_id if runtime and runtime.context else None
+        file_path = sanitize_path(user_id, filename)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def _run(self, filename: str, content: str) -> str:
-        try:
-            # 确保目录存在
-            os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
+        write_mode = "a" if mode == "append" else "w"
 
-            with open(filename, "w", encoding="utf-8") as f:
+        def _write():
+            with open(file_path, write_mode, encoding="utf-8") as f:
                 f.write(content)
 
-            size = len(content)
-            lines = content.count("\n") + 1
-            return f"✓ 成功写入文件: {filename} ({size} 字符, {lines} 行)"
+        await asyncio.to_thread(_write)
 
-        except Exception as e:
-            return f"[错误] 写入文件失败: {str(e)}"
+        size = len(content)
+        lines = content.count("\n") + 1
+        action = "追加到" if mode == "append" else "写入"
 
-    async def _arun(self, filename: str, content: str) -> str:
-        return self._run(filename, content)
+        work_path = get_work_path(user_id)
+        relative_path = file_path.relative_to(work_path)
+
+        return f"✓ 成功{action}文件: {relative_path} ({size} 字符, {lines} 行)"
+
+    except ValueError as e:
+        return f"[安全错误] {str(e)}"
+    except Exception as e:
+        return f"[错误] 写入文件失败: {str(e)}"
 
 
-class ReadFileTool(BaseTool):
-    """智能读取文件的工具"""
+@tool(parse_docstring=True)
+async def read_file(filename: str, max_chars: int = 2000, runtime: ToolRuntime[UserContext] = None) -> str:
+    """读取文件。
 
-    name: str = "read_file"
-    description: str = """
-    读取文件内容。如果文件过大会自动截断，节省 Token。
-    适合读取日志、配置文件、代码等。
-
-    示例:
-    - filename: "log.txt"
-    - filename: "data.json", max_chars: 5000
+    Args:
+        filename: 文件名或相对路径
+        max_chars: 最大读取字符数，超过会自动截断，默认2000
     """
-    args_schema: type[BaseModel] = ReadFileInput
+    try:
+        user_id = runtime.context.user_id if runtime and runtime.context else None
+        file_path = sanitize_path(user_id, filename)
 
-    def _run(self, filename: str, max_chars: int = 2000) -> str:
-        try:
-            if not os.path.exists(filename):
-                return f"[错误] 文件不存在: {filename}"
+        if not file_path.exists():
+            return f"[错误] 文件不存在: {filename}"
 
-            file_size = os.path.getsize(filename)
+        file_size = file_path.stat().st_size
 
-            with open(filename, encoding="utf-8", errors="ignore") as f:
-                content = f.read(max_chars + 1)
+        def _read():
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
+                return f.read(max_chars + 1)
 
-            if len(content) > max_chars:
-                content = content[:max_chars]
-                return f"{content}\n\n" f"... [文件过大已截断，显示前 {max_chars} 字符，" f"总大小: {file_size} 字节]"
+        content = await asyncio.to_thread(_read)
 
-            return content
+        if len(content) > max_chars:
+            content = content[:max_chars]
+            return f"{content}\n\n" f"... [文件过大已截断，显示前 {max_chars} 字符，" f"总大小: {file_size} 字节]"
 
-        except Exception as e:
-            return f"[错误] 读取文件失败: {str(e)}"
+        return str(content)
 
-    async def _arun(self, filename: str, max_chars: int = 2000) -> str:
-        return self._run(filename, max_chars)
+    except ValueError as e:
+        return f"[安全错误] {str(e)}"
+    except Exception as e:
+        return f"[错误] 读取文件失败: {str(e)}"
+
+
+# ============ 工具列表导出 ============
+ALL_TOOLS = [
+    shell_exec,
+    write_file,
+    read_file,
+]
 
 
 # ============ 使用示例 ============
 if __name__ == "__main__":
-    from langchain.agents import AgentExecutor, create_tool_calling_agent
-    from langchain.prompts import ChatPromptTemplate
+    import asyncio
+
+    from langchain.agents import create_agent
     from langchain_openai import ChatOpenAI
 
-    # 1. 创建工具集
-    tools = [ShellExecutorTool(), WriteFileTool(), ReadFileTool()]
+    model = ChatOpenAI(model="gpt-4o", temperature=0)
 
-    # 2. 创建 LLM
-    llm = ChatOpenAI(model="gpt-4", temperature=0)
-
-    # 3. 创建 Prompt
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                """你是一个拥有 Linux Shell 权限的智能助手。
-
-可用工具:
-- shell_executor: 执行任何 Bash 命令
-- write_file: 安全写入文件
-- read_file: 智能读取文件
-
-最佳实践:
-1. 使用管道组合命令: cat file.json | jq .key
-2. 输出重定向到文件: python script.py > result.txt
-3. 复杂任务先写脚本再执行
-4. 读取大文件前先用 head 预览
-""",
-            ),
-            ("human", "{input}"),
-            ("placeholder", "{agent_scratchpad}"),
-        ]
+    # 示例 1: 使用用户隔离
+    agent = create_agent(
+        model,
+        tools=ALL_TOOLS,
+        context_schema=UserContext,
     )
 
-    # 4. 创建 Agent
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, max_iterations=10)
+    async def test_with_user():
+        result = await agent.ainvoke(
+            {"messages": [{"role": "user", "content": "创建一个 hello.txt 文件"}]},
+            context=UserContext(user_id="user-123"),
+        )
+        print(result["messages"][-1].content)
 
-    # 5. 测试示例
-    print("=== 测试 1: 文件操作 ===")
-    result = agent_executor.invoke({"input": "创建一个 Python 脚本计算斐波那契数列前10项，然后执行它"})
-    print(result["output"])
+    # 示例 2: 使用公共目录（不传 context）
+    agent_public = create_agent(
+        model,
+        tools=ALL_TOOLS,
+    )
 
-    print("\n=== 测试 2: 数据处理 ===")
-    result = agent_executor.invoke({"input": "列出当前目录所有 .py 文件，统计总行数"})
-    print(result["output"])
+    async def test_public():
+        result = await agent_public.ainvoke({"messages": [{"role": "user", "content": "列出当前目录文件"}]})
+        print(result["messages"][-1].content)
+
+    asyncio.run(test_with_user())
