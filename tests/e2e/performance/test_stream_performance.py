@@ -93,11 +93,19 @@ class StreamPerformanceAnalyzer:
 
                         data = json.loads(line[6:])  # 去掉 "data: " 前缀
 
+                        # 检查是否是内容块
                         if data.get("type") == "content":
                             total_content += data.get("content", "")
-                        elif data.get("done"):
+
+                        # 检查流结束标志
+                        if data.get("done") is True:
+                            # 正常结束
                             break
-                        elif data.get("stopped"):
+                        elif data.get("stopped") is True:
+                            # 被停止
+                            break
+                        elif "error" in data:
+                            # 发生错误
                             break
                     except Exception:
                         pass
