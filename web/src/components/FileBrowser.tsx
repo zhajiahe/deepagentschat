@@ -133,6 +133,17 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
         const content = response.data.data.content;
         const filename = response.data.data.filename;
         const fileType = getFileType(filename);
+
+        // Excel 文件不支持预览，提示用户下载
+        if (fileType === 'excel') {
+          toast({
+            title: '不支持预览',
+            description: 'Excel 文件不支持在线预览，请下载后查看',
+            variant: 'default',
+          });
+          return;
+        }
+
         setPreviewFile({ name: filename, content, type: fileType });
       }
     } catch (error) {
