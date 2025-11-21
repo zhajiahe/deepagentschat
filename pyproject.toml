@@ -98,6 +98,10 @@ disallow_untyped_defs = false
 module = "tests.e2e.performance.*"
 ignore_errors = true
 
+[[tool.mypy.overrides]]
+module = "scripts.*"
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

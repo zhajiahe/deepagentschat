@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel
 
@@ -177,10 +178,52 @@ async def list_files(current_user: CurrentUser, subdir: str = ""):
         raise HTTPException(status_code=500, detail=f"获取文件列表失败: {str(e)}") from e
 
 
+@router.get("/download/{file_path:path}")
+async def download_file(file_path: str, current_user: CurrentUser):
+    """
+    下载用户工作目录中的文件（支持二进制文件）
+
+    Args:
+        file_path: 文件路径（相对于用户根目录）
+        current_user: 当前登录用户
+
+    Returns:
+        FileResponse: 文件下载响应
+    """
+    try:
+        user_path = get_user_storage_path(current_user.id)
+
+        # 清理路径，防止路径遍历
+        safe_path = file_path.replace("../", "").replace("..\\", "")
+        full_path = (user_path / safe_path).resolve()
+
+        # 确保路径在用户目录内
+        if not str(full_path).startswith(str(user_path.resolve())):
+            raise HTTPException(status_code=403, detail="无效的文件路径")
+
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
+
+        if not full_path.is_file():
+            raise HTTPException(status_code=400, detail=f"{file_path} 不是文件")
+
+        # 返回文件
+        return FileResponse(
+            path=str(full_path),
+            filename=full_path.name,
+            media_type="application/octet-stream",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to download file: {e}")
+        raise HTTPException(status_code=500, detail=f"下载文件失败: {str(e)}") from e
+
+
 @router.get("/read/{file_path:path}")
 async def read_file(file_path: str, current_user: CurrentUser):
     """
-    读取用户工作目录中的文件内容
+    读取用户工作目录中的文件内容（文本文件预览）
 
     Args:
         file_path: 文件路径（相对于用户根目录）

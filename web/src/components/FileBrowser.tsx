@@ -158,24 +158,26 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
 
   const handleDownload = async (filePath: string, filename: string) => {
     try {
-      const response = await request.get(`/files/read/${filePath}`);
-      if (response.data.success) {
-        const content = response.data.data.content;
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      // 使用 download 接口获取二进制文件
+      const response = await request.get(`/files/download/${filePath}`, {
+        responseType: 'blob',
+      });
 
-        toast({
-          title: '下载成功',
-          description: `文件 ${filename} 已下载`,
-        });
-      }
+      // 创建下载链接
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: '下载成功',
+        description: `文件 ${filename} 已下载`,
+      });
     } catch (error) {
       console.error('Failed to download file:', error);
       toast({
