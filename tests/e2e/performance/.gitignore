@@ -1,5 +1,0 @@
-# 忽略性能测试生成的文件
-performance_results_*.json
-report_*.html
-__pycache__/
-*.pyc

@@ -161,7 +161,11 @@ def sanitize_path(user_id: str | None, filename: str) -> Path:
 
 
 @tool(parse_docstring=True)
-async def shell_exec(command: str, timeout: int = 30, runtime: ToolRuntime[UserContext] | None = None) -> str:
+async def shell_exec(
+    command: str,
+    runtime: ToolRuntime[UserContext],
+    timeout: int = 30,
+) -> str:
     """## 执行Bash命令(使用独立的工具虚拟环境)
     - **文件浏览**: `ls`, `tree`, `cat`, `head`, `tail`
     - **搜索与处理**: `grep`, `sed`, `awk`, `jq` (处理 JSON)
@@ -226,8 +230,8 @@ async def shell_exec(command: str, timeout: int = 30, runtime: ToolRuntime[UserC
 async def write_file(
     filename: str,
     content: str,
+    runtime: ToolRuntime[UserContext],
     mode: Literal["overwrite", "append"] = "overwrite",
-    runtime: ToolRuntime[UserContext] | None = None,
 ) -> str:
     """写入文件。
 
@@ -265,7 +269,11 @@ async def write_file(
 
 
 @tool(parse_docstring=True)
-async def read_file(filename: str, max_chars: int = 2000, runtime: ToolRuntime[UserContext] | None = None) -> str:
+async def read_file(
+    filename: str,
+    runtime: ToolRuntime[UserContext],
+    max_chars: int = 2000,
+) -> str:
     """读取文件。
 
     Args:
@@ -289,7 +297,7 @@ async def read_file(filename: str, max_chars: int = 2000, runtime: ToolRuntime[U
 
         if len(content) > max_chars:
             content = content[:max_chars]
-            return f"{content}\n\n" f"... [文件过大已截断，显示前 {max_chars} 字符，" f"总大小: {file_size} 字节]"
+            return f"{content}\n\n... [文件过大已截断，显示前 {max_chars} 字符，总大小: {file_size} 字节]"
 
         return str(content)
 
