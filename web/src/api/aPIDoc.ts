@@ -5,9 +5,11 @@
  * Langchain+fastapi生产级后端模板
  * OpenAPI spec version: 1.0.0
  */
-
-import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import axios from 'axios';
+import type {
+  AxiosRequestConfig,
+  AxiosResponse
+} from 'axios';
 
 export type BaseResponseData = unknown | null;
 
@@ -367,6 +369,7 @@ export interface FileInfo {
   filename: string;
   size: number;
   path: string;
+  is_dir?: boolean;
 }
 
 /**
@@ -725,73 +728,85 @@ export interface ValidationError {
 }
 
 export type LoginApiV1AuthLoginPostParams = {
-  username: string;
-  password: string;
+username: string;
+password: string;
 };
 
 export type GetUsersApiV1UsersGetParams = {
-  /**
-   * @minimum 1
-   */
-  page_num?: number;
-  /**
-   * @minimum 1
-   */
-  page_size?: number;
-  keyword?: string | null;
-  is_active?: boolean | null;
-  is_superuser?: boolean | null;
+/**
+ * @minimum 1
+ */
+page_num?: number;
+/**
+ * @minimum 1
+ */
+page_size?: number;
+keyword?: string | null;
+is_active?: boolean | null;
+is_superuser?: boolean | null;
 };
 
 export type ListConversationsApiV1ConversationsGetParams = {
-  /**
-   * @minimum 1
-   */
-  page_num?: number;
-  /**
-   * @minimum 1
-   */
-  page_size?: number;
+/**
+ * @minimum 1
+ */
+page_num?: number;
+/**
+ * @minimum 1
+ */
+page_size?: number;
 };
 
 export type DeleteAllConversationsApiV1ConversationsAllDeleteParams = {
-  hard_delete?: boolean;
+hard_delete?: boolean;
 };
 
 export type DeleteConversationApiV1ConversationsThreadIdDeleteParams = {
-  hard_delete?: boolean;
+hard_delete?: boolean;
 };
 
 export type GetMessagesApiV1ConversationsThreadIdMessagesGetParams = {
-  /**
-   * @minimum 1
-   */
-  page_num?: number;
-  /**
-   * @minimum 1
-   */
-  page_size?: number;
+/**
+ * @minimum 1
+ */
+page_num?: number;
+/**
+ * @minimum 1
+ */
+page_size?: number;
 };
 
 export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetParams = {
-  limit?: number;
+limit?: number;
+};
+
+export type ListFilesApiV1FilesListGetParams = {
+subdir?: string;
 };
 
 /**
  * 根路径，健康检查
  * @summary Root
  */
-export const rootGet = <TData = AxiosResponse<unknown>>(options?: AxiosRequestConfig): Promise<TData> => {
-  return axios.get('/', options);
-};
+export const rootGet = <TData = AxiosResponse<unknown>>(
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/`,options
+    );
+  }
 
 /**
  * 健康检查接口
  * @summary Health Check
  */
-export const healthCheckHealthGet = <TData = AxiosResponse<unknown>>(options?: AxiosRequestConfig): Promise<TData> => {
-  return axios.get('/health', options);
-};
+export const healthCheckHealthGet = <TData = AxiosResponse<unknown>>(
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/health`,options
+    );
+  }
 
 /**
  * 用户登录
@@ -806,14 +821,14 @@ Returns:
  * @summary Login
  */
 export const loginApiV1AuthLoginPost = <TData = AxiosResponse<BaseResponseToken>>(
-  params: LoginApiV1AuthLoginPostParams,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/auth/login', undefined, {
+    params: LoginApiV1AuthLoginPostParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/auth/login`,undefined,{
     ...options,
-    params: { ...params, ...options?.params },
-  });
-};
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
  * 用户注册
@@ -827,11 +842,13 @@ Returns:
  * @summary Register
  */
 export const registerApiV1AuthRegisterPost = <TData = AxiosResponse<BaseResponseUserResponse>>(
-  userCreate: UserCreate,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/auth/register', userCreate, options);
-};
+    userCreate: UserCreate, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/auth/register`,
+      userCreate,options
+    );
+  }
 
 /**
  * 获取当前登录用户信息
@@ -844,10 +861,12 @@ Returns:
  * @summary Get Current User Info
  */
 export const getCurrentUserInfoApiV1AuthMeGet = <TData = AxiosResponse<BaseResponseUserResponse>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/api/v1/auth/me', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/auth/me`,options
+    );
+  }
 
 /**
  * 更新当前登录用户信息
@@ -862,11 +881,13 @@ Returns:
  * @summary Update Current User
  */
 export const updateCurrentUserApiV1AuthMePut = <TData = AxiosResponse<BaseResponseUserResponse>>(
-  userUpdate: UserUpdate,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.put('/api/v1/auth/me', userUpdate, options);
-};
+    userUpdate: UserUpdate, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.put(
+      `/api/v1/auth/me`,
+      userUpdate,options
+    );
+  }
 
 /**
  * 修改密码
@@ -881,11 +902,13 @@ Returns:
  * @summary Change Password
  */
 export const changePasswordApiV1AuthResetPasswordPost = <TData = AxiosResponse<BaseResponseNoneType>>(
-  passwordChange: PasswordChange,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/auth/reset-password', passwordChange, options);
-};
+    passwordChange: PasswordChange, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/auth/reset-password`,
+      passwordChange,options
+    );
+  }
 
 /**
  * 获取用户列表（分页）- 需要超级管理员权限
@@ -898,14 +921,14 @@ Args:
  * @summary Get Users
  */
 export const getUsersApiV1UsersGet = <TData = AxiosResponse<BaseResponsePageResponseUserResponse>>(
-  params?: GetUsersApiV1UsersGetParams,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/api/v1/users', {
+    params?: GetUsersApiV1UsersGetParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/users`,{
     ...options,
-    params: { ...params, ...options?.params },
-  });
-};
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
  * 创建新用户 - 需要超级管理员权限
@@ -917,11 +940,13 @@ Args:
  * @summary Create User
  */
 export const createUserApiV1UsersPost = <TData = AxiosResponse<BaseResponseUserResponse>>(
-  userCreate: UserCreate,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/users', userCreate, options);
-};
+    userCreate: UserCreate, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/users`,
+      userCreate,options
+    );
+  }
 
 /**
  * 获取用户设置
@@ -935,10 +960,12 @@ Returns:
  * @summary Get User Settings
  */
 export const getUserSettingsApiV1UsersSettingsGet = <TData = AxiosResponse<BaseResponseUserSettingsResponse>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/api/v1/users/settings', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/users/settings`,options
+    );
+  }
 
 /**
  * 更新用户设置
@@ -953,11 +980,13 @@ Returns:
  * @summary Update User Settings
  */
 export const updateUserSettingsApiV1UsersSettingsPut = <TData = AxiosResponse<BaseResponseUserSettingsResponse>>(
-  userSettingsUpdate: UserSettingsUpdate,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.put('/api/v1/users/settings', userSettingsUpdate, options);
-};
+    userSettingsUpdate: UserSettingsUpdate, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.put(
+      `/api/v1/users/settings`,
+      userSettingsUpdate,options
+    );
+  }
 
 /**
  * 获取单个用户详情 - 需要超级管理员权限
@@ -969,11 +998,12 @@ Args:
  * @summary Get User
  */
 export const getUserApiV1UsersUserIdGet = <TData = AxiosResponse<BaseResponseUserResponse>>(
-  userId: string,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get(`/api/v1/users/${userId}`, options);
-};
+    userId: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/users/${userId}`,options
+    );
+  }
 
 /**
  * 更新用户信息 - 需要超级管理员权限
@@ -986,12 +1016,14 @@ Args:
  * @summary Update User
  */
 export const updateUserApiV1UsersUserIdPut = <TData = AxiosResponse<BaseResponseUserResponse>>(
-  userId: string,
-  userUpdate: UserUpdate,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.put(`/api/v1/users/${userId}`, userUpdate, options);
-};
+    userId: string,
+    userUpdate: UserUpdate, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.put(
+      `/api/v1/users/${userId}`,
+      userUpdate,options
+    );
+  }
 
 /**
  * 删除用户（逻辑删除）- 需要超级管理员权限
@@ -1003,30 +1035,26 @@ Args:
  * @summary Delete User
  */
 export const deleteUserApiV1UsersUserIdDelete = <TData = AxiosResponse<BaseResponseNoneType>>(
-  userId: string,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.delete(`/api/v1/users/${userId}`, options);
-};
+    userId: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.delete(
+      `/api/v1/users/${userId}`,options
+    );
+  }
 
 /**
  * 获取可用的 LLM 模型列表
 
 从用户配置的 API 端点动态获取模型列表
-
-Args:
-    _current_user: 当前登录用户
-    db: 数据库会话
-
-Returns:
-    list[str]: 可用模型 ID 列表
  * @summary List Available Models
  */
 export const listAvailableModelsApiV1UsersModelsAvailableGet = <TData = AxiosResponse<BaseResponseListStr>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/api/v1/users/models/available', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/users/models/available`,options
+    );
+  }
 
 /**
  * 异步对话接口 (非流式)
@@ -1041,11 +1069,13 @@ Returns:
  * @summary Chat
  */
 export const chatApiV1ChatPost = <TData = AxiosResponse<BaseResponseChatResponse>>(
-  chatRequest: ChatRequest,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/chat', chatRequest, options);
-};
+    chatRequest: ChatRequest, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/chat`,
+      chatRequest,options
+    );
+  }
 
 /**
  * 异步流式对话接口
@@ -1060,11 +1090,13 @@ Returns:
  * @summary Chat Stream
  */
 export const chatStreamApiV1ChatStreamPost = <TData = AxiosResponse<unknown>>(
-  chatRequest: ChatRequest,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/chat/stream', chatRequest, options);
-};
+    chatRequest: ChatRequest, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/chat/stream`,
+      chatRequest,options
+    );
+  }
 
 /**
  * 停止正在进行的对话请求
@@ -1079,11 +1111,13 @@ Returns:
  * @summary Stop Chat
  */
 export const stopChatApiV1ChatStopPost = <TData = AxiosResponse<unknown>>(
-  stopRequest: StopRequest,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/chat/stop', stopRequest, options);
-};
+    stopRequest: StopRequest, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/chat/stop`,
+      stopRequest,options
+    );
+  }
 
 /**
  * 创建新会话
@@ -1097,11 +1131,13 @@ Returns:
  * @summary Create Conversation
  */
 export const createConversationApiV1ConversationsPost = <TData = AxiosResponse<BaseResponseConversationResponse>>(
-  conversationCreate: ConversationCreate,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/conversations', conversationCreate, options);
-};
+    conversationCreate: ConversationCreate, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/conversations`,
+      conversationCreate,options
+    );
+  }
 
 /**
  * 获取用户的会话列表
@@ -1115,17 +1151,15 @@ Returns:
     PageResponse[ConversationResponse]: 分页的会话列表
  * @summary List Conversations
  */
-export const listConversationsApiV1ConversationsGet = <
-  TData = AxiosResponse<BaseResponsePageResponseConversationResponse>,
->(
-  params?: ListConversationsApiV1ConversationsGetParams,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/api/v1/conversations', {
+export const listConversationsApiV1ConversationsGet = <TData = AxiosResponse<BaseResponsePageResponseConversationResponse>>(
+    params?: ListConversationsApiV1ConversationsGetParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/conversations`,{
     ...options,
-    params: { ...params, ...options?.params },
-  });
-};
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
  * 删除当前用户的所有历史会话
@@ -1140,14 +1174,14 @@ Returns:
  * @summary 删除所有历史会话
  */
 export const deleteAllConversationsApiV1ConversationsAllDelete = <TData = AxiosResponse<BaseResponse>>(
-  params?: DeleteAllConversationsApiV1ConversationsAllDeleteParams,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.delete('/api/v1/conversations/all', {
+    params?: DeleteAllConversationsApiV1ConversationsAllDeleteParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.delete(
+      `/api/v1/conversations/all`,{
     ...options,
-    params: { ...params, ...options?.params },
-  });
-};
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
  * 获取单个会话详情
@@ -1160,14 +1194,13 @@ Returns:
     ConversationDetailResponse: 会话详情
  * @summary Get Conversation
  */
-export const getConversationApiV1ConversationsThreadIdGet = <
-  TData = AxiosResponse<BaseResponseConversationDetailResponse>,
->(
-  threadId: string,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get(`/api/v1/conversations/${threadId}`, options);
-};
+export const getConversationApiV1ConversationsThreadIdGet = <TData = AxiosResponse<BaseResponseConversationDetailResponse>>(
+    threadId: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/conversations/${threadId}`,options
+    );
+  }
 
 /**
  * 更新会话信息
@@ -1182,12 +1215,14 @@ Returns:
  * @summary Update Conversation
  */
 export const updateConversationApiV1ConversationsThreadIdPatch = <TData = AxiosResponse<BaseResponseDict>>(
-  threadId: string,
-  conversationUpdate: ConversationUpdate,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.patch(`/api/v1/conversations/${threadId}`, conversationUpdate, options);
-};
+    threadId: string,
+    conversationUpdate: ConversationUpdate, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.patch(
+      `/api/v1/conversations/${threadId}`,
+      conversationUpdate,options
+    );
+  }
 
 /**
  * 删除会话（软删除或硬删除），默认硬删除
@@ -1202,15 +1237,15 @@ Returns:
  * @summary Delete Conversation
  */
 export const deleteConversationApiV1ConversationsThreadIdDelete = <TData = AxiosResponse<BaseResponseDict>>(
-  threadId: string,
-  params?: DeleteConversationApiV1ConversationsThreadIdDeleteParams,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.delete(`/api/v1/conversations/${threadId}`, {
+    threadId: string,
+    params?: DeleteConversationApiV1ConversationsThreadIdDeleteParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.delete(
+      `/api/v1/conversations/${threadId}`,{
     ...options,
-    params: { ...params, ...options?.params },
-  });
-};
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
  * 重置对话：清除所有检查点和消息记录，但保留会话记录
@@ -1227,11 +1262,12 @@ Returns:
  * @summary Reset Conversation
  */
 export const resetConversationApiV1ConversationsThreadIdResetPost = <TData = AxiosResponse<unknown>>(
-  threadId: string,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post(`/api/v1/conversations/${threadId}/reset`, undefined, options);
-};
+    threadId: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/conversations/${threadId}/reset`,undefined,options
+    );
+  }
 
 /**
  * 获取会话消息历史（从 LangGraph checkpoint 读取）
@@ -1246,18 +1282,16 @@ Returns:
     PageResponse[MessageResponse]: 分页的消息列表
  * @summary Get Messages
  */
-export const getMessagesApiV1ConversationsThreadIdMessagesGet = <
-  TData = AxiosResponse<BaseResponsePageResponseMessageResponse>,
->(
-  threadId: string,
-  params?: GetMessagesApiV1ConversationsThreadIdMessagesGetParams,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get(`/api/v1/conversations/${threadId}/messages`, {
+export const getMessagesApiV1ConversationsThreadIdMessagesGet = <TData = AxiosResponse<BaseResponsePageResponseMessageResponse>>(
+    threadId: string,
+    params?: GetMessagesApiV1ConversationsThreadIdMessagesGetParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/conversations/${threadId}/messages`,{
     ...options,
-    params: { ...params, ...options?.params },
-  });
-};
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
  * 获取会话的所有检查点
@@ -1270,18 +1304,16 @@ Returns:
     CheckpointResponse: 检查点响应
  * @summary Get Checkpoints
  */
-export const getCheckpointsApiV1ConversationsThreadIdCheckpointsGet = <
-  TData = AxiosResponse<BaseResponseCheckpointResponse>,
->(
-  threadId: string,
-  params?: GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetParams,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get(`/api/v1/conversations/${threadId}/checkpoints`, {
+export const getCheckpointsApiV1ConversationsThreadIdCheckpointsGet = <TData = AxiosResponse<BaseResponseCheckpointResponse>>(
+    threadId: string,
+    params?: GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/conversations/${threadId}/checkpoints`,{
     ...options,
-    params: { ...params, ...options?.params },
-  });
-};
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
  * 搜索会话和消息
@@ -1295,11 +1327,13 @@ Returns:
  * @summary Search Conversations
  */
 export const searchConversationsApiV1ConversationsSearchPost = <TData = AxiosResponse<BaseResponseSearchResponse>>(
-  searchRequest: SearchRequest,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.post('/api/v1/conversations/search', searchRequest, options);
-};
+    searchRequest: SearchRequest, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.post(
+      `/api/v1/conversations/search`,
+      searchRequest,options
+    );
+  }
 
 /**
  * 获取用户统计信息
@@ -1313,10 +1347,12 @@ Returns:
  * @summary Get User Stats
  */
 export const getUserStatsApiV1ConversationsUsersStatsGet = <TData = AxiosResponse<BaseResponseUserStatsResponse>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/api/v1/conversations/users/stats', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/conversations/users/stats`,options
+    );
+  }
 
 /**
  * 上传文件到用户的工作目录
@@ -1330,66 +1366,93 @@ Returns:
  * @summary Upload File
  */
 export const uploadFileApiV1FilesUploadPost = <TData = AxiosResponse<BaseResponseUploadResponse>>(
-  bodyUploadFileApiV1FilesUploadPost: BodyUploadFileApiV1FilesUploadPost,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  const formData = new FormData();
-  formData.append('file', bodyUploadFileApiV1FilesUploadPost.file);
+    bodyUploadFileApiV1FilesUploadPost: BodyUploadFileApiV1FilesUploadPost, options?: AxiosRequestConfig
+ ): Promise<TData> => {const formData = new FormData();
+formData.append(`file`, bodyUploadFileApiV1FilesUploadPost.file)
 
-  return axios.post('/api/v1/files/upload', formData, options);
-};
+    return axios.post(
+      `/api/v1/files/upload`,
+      formData,options
+    );
+  }
 
 /**
- * 列出用户工作目录中的所有文件
+ * 列出用户工作目录中的文件和文件夹
 
 Args:
     current_user: 当前登录用户
+    subdir: 子目录路径（相对于用户根目录）
 
 Returns:
     FileListResponse: 文件列表
  * @summary List Files
  */
 export const listFilesApiV1FilesListGet = <TData = AxiosResponse<BaseResponseFileListResponse>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/api/v1/files/list', options);
-};
+    params?: ListFilesApiV1FilesListGetParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/files/list`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
 /**
- * 读取用户工作目录中的文件内容
+ * 下载用户工作目录中的文件（支持二进制文件）
 
 Args:
-    filename: 文件名
+    file_path: 文件路径（相对于用户根目录）
+    current_user: 当前登录用户
+
+Returns:
+    FileResponse: 文件下载响应
+ * @summary Download File
+ */
+export const downloadFileApiV1FilesDownloadFilePathGet = <TData = AxiosResponse<unknown>>(
+    filePath: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/files/download/${filePath}`,options
+    );
+  }
+
+/**
+ * 读取用户工作目录中的文件内容（文本文件预览）
+
+Args:
+    file_path: 文件路径（相对于用户根目录）
     current_user: 当前登录用户
 
 Returns:
     str: 文件内容
  * @summary Read File
  */
-export const readFileApiV1FilesReadFilenameGet = <TData = AxiosResponse<unknown>>(
-  filename: string,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get(`/api/v1/files/read/${filename}`, options);
-};
+export const readFileApiV1FilesReadFilePathGet = <TData = AxiosResponse<unknown>>(
+    filePath: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/api/v1/files/read/${filePath}`,options
+    );
+  }
 
 /**
  * 删除用户工作目录中的文件
 
 Args:
-    filename: 文件名
+    file_path: 文件路径（相对于用户根目录）
     current_user: 当前登录用户
 
 Returns:
     dict: 删除结果
  * @summary Delete File
  */
-export const deleteFileApiV1FilesFilenameDelete = <TData = AxiosResponse<unknown>>(
-  filename: string,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.delete(`/api/v1/files/${filename}`, options);
-};
+export const deleteFileApiV1FilesFilePathDelete = <TData = AxiosResponse<unknown>>(
+    filePath: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.delete(
+      `/api/v1/files/${filePath}`,options
+    );
+  }
 
 /**
  * 清空用户工作目录中的所有文件
@@ -1402,89 +1465,97 @@ Returns:
  * @summary Clear All Files
  */
 export const clearAllFilesApiV1FilesDelete = <TData = AxiosResponse<unknown>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.delete('/api/v1/files', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.delete(
+      `/api/v1/files`,options
+    );
+  }
 
 /**
  * 处理 favicon 请求
  * @summary Serve Favicon
  */
 export const serveFaviconWebFaviconSvgGet = <TData = AxiosResponse<unknown>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/web/favicon.svg', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/web/favicon.svg`,options
+    );
+  }
 
 /**
  * 处理 logo 请求
  * @summary Serve Logo
  */
 export const serveLogoWebLogoSvgGet = <TData = AxiosResponse<unknown>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/web/logo.svg', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/web/logo.svg`,options
+    );
+  }
 
 /**
  * 处理 readme logo 请求
  * @summary Serve Logo Readme
  */
 export const serveLogoReadmeWebLogoReadmeSvgGet = <TData = AxiosResponse<unknown>>(
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get('/web/logo_readme.svg', options);
-};
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/web/logo_readme.svg`,options
+    );
+  }
 
 /**
  * 处理 SPA 路由，所有路径都返回 index.html
  * @summary Serve Spa
  */
 export const serveSpaWebFullPathGet = <TData = AxiosResponse<unknown>>(
-  fullPath: string,
-  options?: AxiosRequestConfig
-): Promise<TData> => {
-  return axios.get(`/web/${fullPath}`, options);
-};
+    fullPath: string, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.get(
+      `/web/${fullPath}`,options
+    );
+  }
 
-export type RootGetResult = AxiosResponse<unknown>;
-export type HealthCheckHealthGetResult = AxiosResponse<unknown>;
-export type LoginApiV1AuthLoginPostResult = AxiosResponse<BaseResponseToken>;
-export type RegisterApiV1AuthRegisterPostResult = AxiosResponse<BaseResponseUserResponse>;
-export type GetCurrentUserInfoApiV1AuthMeGetResult = AxiosResponse<BaseResponseUserResponse>;
-export type UpdateCurrentUserApiV1AuthMePutResult = AxiosResponse<BaseResponseUserResponse>;
-export type ChangePasswordApiV1AuthResetPasswordPostResult = AxiosResponse<BaseResponseNoneType>;
-export type GetUsersApiV1UsersGetResult = AxiosResponse<BaseResponsePageResponseUserResponse>;
-export type CreateUserApiV1UsersPostResult = AxiosResponse<BaseResponseUserResponse>;
-export type GetUserSettingsApiV1UsersSettingsGetResult = AxiosResponse<BaseResponseUserSettingsResponse>;
-export type UpdateUserSettingsApiV1UsersSettingsPutResult = AxiosResponse<BaseResponseUserSettingsResponse>;
-export type GetUserApiV1UsersUserIdGetResult = AxiosResponse<BaseResponseUserResponse>;
-export type UpdateUserApiV1UsersUserIdPutResult = AxiosResponse<BaseResponseUserResponse>;
-export type DeleteUserApiV1UsersUserIdDeleteResult = AxiosResponse<BaseResponseNoneType>;
-export type ListAvailableModelsApiV1UsersModelsAvailableGetResult = AxiosResponse<BaseResponseListStr>;
-export type ChatApiV1ChatPostResult = AxiosResponse<BaseResponseChatResponse>;
-export type ChatStreamApiV1ChatStreamPostResult = AxiosResponse<unknown>;
-export type StopChatApiV1ChatStopPostResult = AxiosResponse<unknown>;
-export type CreateConversationApiV1ConversationsPostResult = AxiosResponse<BaseResponseConversationResponse>;
-export type ListConversationsApiV1ConversationsGetResult = AxiosResponse<BaseResponsePageResponseConversationResponse>;
-export type DeleteAllConversationsApiV1ConversationsAllDeleteResult = AxiosResponse<BaseResponse>;
-export type GetConversationApiV1ConversationsThreadIdGetResult = AxiosResponse<BaseResponseConversationDetailResponse>;
-export type UpdateConversationApiV1ConversationsThreadIdPatchResult = AxiosResponse<BaseResponseDict>;
-export type DeleteConversationApiV1ConversationsThreadIdDeleteResult = AxiosResponse<BaseResponseDict>;
-export type ResetConversationApiV1ConversationsThreadIdResetPostResult = AxiosResponse<unknown>;
-export type GetMessagesApiV1ConversationsThreadIdMessagesGetResult =
-  AxiosResponse<BaseResponsePageResponseMessageResponse>;
-export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetResult =
-  AxiosResponse<BaseResponseCheckpointResponse>;
-export type SearchConversationsApiV1ConversationsSearchPostResult = AxiosResponse<BaseResponseSearchResponse>;
-export type GetUserStatsApiV1ConversationsUsersStatsGetResult = AxiosResponse<BaseResponseUserStatsResponse>;
-export type UploadFileApiV1FilesUploadPostResult = AxiosResponse<BaseResponseUploadResponse>;
-export type ListFilesApiV1FilesListGetResult = AxiosResponse<BaseResponseFileListResponse>;
-export type ReadFileApiV1FilesReadFilenameGetResult = AxiosResponse<unknown>;
-export type DeleteFileApiV1FilesFilenameDeleteResult = AxiosResponse<unknown>;
-export type ClearAllFilesApiV1FilesDeleteResult = AxiosResponse<unknown>;
-export type ServeFaviconWebFaviconSvgGetResult = AxiosResponse<unknown>;
-export type ServeLogoWebLogoSvgGetResult = AxiosResponse<unknown>;
-export type ServeLogoReadmeWebLogoReadmeSvgGetResult = AxiosResponse<unknown>;
-export type ServeSpaWebFullPathGetResult = AxiosResponse<unknown>;
+export type RootGetResult = AxiosResponse<unknown>
+export type HealthCheckHealthGetResult = AxiosResponse<unknown>
+export type LoginApiV1AuthLoginPostResult = AxiosResponse<BaseResponseToken>
+export type RegisterApiV1AuthRegisterPostResult = AxiosResponse<BaseResponseUserResponse>
+export type GetCurrentUserInfoApiV1AuthMeGetResult = AxiosResponse<BaseResponseUserResponse>
+export type UpdateCurrentUserApiV1AuthMePutResult = AxiosResponse<BaseResponseUserResponse>
+export type ChangePasswordApiV1AuthResetPasswordPostResult = AxiosResponse<BaseResponseNoneType>
+export type GetUsersApiV1UsersGetResult = AxiosResponse<BaseResponsePageResponseUserResponse>
+export type CreateUserApiV1UsersPostResult = AxiosResponse<BaseResponseUserResponse>
+export type GetUserSettingsApiV1UsersSettingsGetResult = AxiosResponse<BaseResponseUserSettingsResponse>
+export type UpdateUserSettingsApiV1UsersSettingsPutResult = AxiosResponse<BaseResponseUserSettingsResponse>
+export type GetUserApiV1UsersUserIdGetResult = AxiosResponse<BaseResponseUserResponse>
+export type UpdateUserApiV1UsersUserIdPutResult = AxiosResponse<BaseResponseUserResponse>
+export type DeleteUserApiV1UsersUserIdDeleteResult = AxiosResponse<BaseResponseNoneType>
+export type ListAvailableModelsApiV1UsersModelsAvailableGetResult = AxiosResponse<BaseResponseListStr>
+export type ChatApiV1ChatPostResult = AxiosResponse<BaseResponseChatResponse>
+export type ChatStreamApiV1ChatStreamPostResult = AxiosResponse<unknown>
+export type StopChatApiV1ChatStopPostResult = AxiosResponse<unknown>
+export type CreateConversationApiV1ConversationsPostResult = AxiosResponse<BaseResponseConversationResponse>
+export type ListConversationsApiV1ConversationsGetResult = AxiosResponse<BaseResponsePageResponseConversationResponse>
+export type DeleteAllConversationsApiV1ConversationsAllDeleteResult = AxiosResponse<BaseResponse>
+export type GetConversationApiV1ConversationsThreadIdGetResult = AxiosResponse<BaseResponseConversationDetailResponse>
+export type UpdateConversationApiV1ConversationsThreadIdPatchResult = AxiosResponse<BaseResponseDict>
+export type DeleteConversationApiV1ConversationsThreadIdDeleteResult = AxiosResponse<BaseResponseDict>
+export type ResetConversationApiV1ConversationsThreadIdResetPostResult = AxiosResponse<unknown>
+export type GetMessagesApiV1ConversationsThreadIdMessagesGetResult = AxiosResponse<BaseResponsePageResponseMessageResponse>
+export type GetCheckpointsApiV1ConversationsThreadIdCheckpointsGetResult = AxiosResponse<BaseResponseCheckpointResponse>
+export type SearchConversationsApiV1ConversationsSearchPostResult = AxiosResponse<BaseResponseSearchResponse>
+export type GetUserStatsApiV1ConversationsUsersStatsGetResult = AxiosResponse<BaseResponseUserStatsResponse>
+export type UploadFileApiV1FilesUploadPostResult = AxiosResponse<BaseResponseUploadResponse>
+export type ListFilesApiV1FilesListGetResult = AxiosResponse<BaseResponseFileListResponse>
+export type DownloadFileApiV1FilesDownloadFilePathGetResult = AxiosResponse<unknown>
+export type ReadFileApiV1FilesReadFilePathGetResult = AxiosResponse<unknown>
+export type DeleteFileApiV1FilesFilePathDeleteResult = AxiosResponse<unknown>
+export type ClearAllFilesApiV1FilesDeleteResult = AxiosResponse<unknown>
+export type ServeFaviconWebFaviconSvgGetResult = AxiosResponse<unknown>
+export type ServeLogoWebLogoSvgGetResult = AxiosResponse<unknown>
+export type ServeLogoReadmeWebLogoReadmeSvgGetResult = AxiosResponse<unknown>
+export type ServeSpaWebFullPathGetResult = AxiosResponse<unknown>
