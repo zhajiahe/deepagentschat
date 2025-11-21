@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zhajiahe/deepagentschat/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/version-0.4.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com/zhajiahe/deepagentschat/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/version-0.5.0-blue.svg" alt="Version"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python"></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.115+-green.svg" alt="FastAPI"></a>
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-blue.svg" alt="React"></a>
@@ -29,9 +29,10 @@
 - 🤖 **LangChain Agents**：基于 LangChain v1 的 `create_agent` API，支持工具调用和中间件扩展
 - 🔧 **DeepAgents 中间件**：集成 `TodoListMiddleware`、`SummarizationMiddleware`
 - 🗂️ **多用户文件隔离**：每个用户拥有独立的文件存储空间（`/tmp/user_files/{user_id}`）
+- 🐍 **独立工具环境**：工具使用独立虚拟环境，避免污染项目环境
 - 🔐 **完整用户认证**：JWT 双令牌、用户注册/登录、权限管理
 - 💬 **流式对话系统**：SSE 流式响应、会话管理、状态持久化（LangGraph Checkpointer）
-- 📁 **文件浏览器**：右侧可折叠面板，支持文件上传/下载/删除/预览
+- 📁 **增强文件浏览器**：支持子文件夹导航、多格式预览（Markdown/JSON/代码/CSV/Excel）
 - 🎨 **现代化前端**：React 18 + TypeScript + shadcn/ui + Tailwind CSS
 - 🧪 **测试覆盖**：集成测试、代码质量检查（Ruff、MyPy）
 - 🔍 **MCP 集成**：支持 LangChain MCP Adapters，可连接外部工具和服务
@@ -236,6 +237,23 @@ pnpm lint         # 代码检查
 | **shadcn/ui** | Latest | UI 组件库 |
 | **Tailwind CSS** | 3+ | 样式框架 |
 | **Axios** | Latest | HTTP 客户端 |
+
+## 📝 更新日志
+
+### v0.5.0 (2025-11-21)
+- ✨ 实现独立工具虚拟环境，所有用户共享，避免污染项目环境
+- ✨ 增强文件浏览器，支持子文件夹导航和多格式预览
+- ✨ 优化工具实现，使用 `ToolRuntime` 支持用户隔离
+- 🐛 修复 Excel 文件预览乱码问题
+- ♻️ 重构对话消息处理架构
+- ♻️ 移除自定义 backends，改用 deepagents 默认后端
+
+### v0.4.0
+- 🎉 初始版本发布
+- 🤖 集成 LangChain Agents 和 DeepAgents 中间件
+- 🔐 完整的用户认证系统
+- 💬 流式对话和会话管理
+- 📁 文件浏览器和文件管理
 
 ## 📄 许可证
 

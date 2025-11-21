@@ -160,16 +160,35 @@ agent: Runnable = create_agent(
 ```
 
 ### 文件管理
-- 文件存储使用本地文件系统：`/tmp/user_files/{user_id}`
-- 每个用户拥有独立的存储空间
-- 通过 `app/api/files.py` 提供文件上传/下载/删除等 API
+- **用户文件隔离**: `/tmp/user_files/{user_id}` - 每个用户独立存储空间
+- **工具虚拟环境**: `/tmp/user_files/.tools_venv` - 独立 Python 环境,所有用户共享
+- **文件浏览器**: 支持子文件夹导航、多格式预览(Markdown/JSON/代码/CSV)
+- **API 接口**: `app/api/files.py` 提供完整的文件操作 API
+
+## Agent 工具系统
+
+### 工具实现(app/tools.py)
+- 使用 `@tool` 装饰器和 `ToolRuntime` 实现用户上下文注入
+- **shell_exec**: 执行 Bash 命令,自动使用独立工具虚拟环境
+- **write_file**: 写入文件,支持覆盖/追加模式
+- **read_file**: 读取文件,自动截断大文件
+
+### 独立虚拟环境
+- 工具执行使用独立 Python 环境,避免污染项目环境
+- 通过 `.pth` 文件链接项目依赖,轻量且快速
+- 首次使用自动创建,后续无额外开销
+
+### 用户隔离
+- 通过 `ToolRuntime[UserContext]` 自动注入 `user_id`
+- 所有文件操作限制在用户目录内
+- 支持公共目录(user_id 为空时)
 
 ## 常见问题
 ### Q: 如何自定义 Agent 工具?
-A: 在 `app/agent.py` 中添加新的 `@tool` 装饰的函数，并将其添加到 `tools` 列表中
+A: 在 `app/tools.py` 中使用 `@tool` 装饰器创建函数,添加到 `ALL_TOOLS` 列表
+
+### Q: 工具虚拟环境在哪里?
+A: `/tmp/user_files/.tools_venv`,所有用户共享,与项目环境隔离
 
 ### Q: 如何添加新的中间件?
-A: 在 `app/middleware/` 创建中间件，然后在 `app/main.py` 中注册
-
-### Q: 如何更改 Agent 的默认后端?
-A: DeepAgents 默认使用 StateBackend。如需自定义，可以在 `create_agent()` 中传入 `backend` 参数
+A: 在 `app/agent.py` 的 `create_agent()` 中添加到 `middleware` 列表
