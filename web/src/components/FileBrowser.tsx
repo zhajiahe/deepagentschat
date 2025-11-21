@@ -123,27 +123,40 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     if (['py', 'js', 'ts', 'tsx', 'jsx', 'java', 'cpp', 'c', 'go', 'rs'].includes(ext)) return 'code';
     if (['csv'].includes(ext)) return 'csv';
     if (['xlsx', 'xls'].includes(ext)) return 'excel';
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
     return 'text';
   };
 
   const handlePreview = async (filePath: string) => {
     try {
+      const filename = filePath.split('/').pop() || filePath;
+      const fileType = getFileType(filename);
+
+      // Excel 文件不支持预览，提示用户下载
+      if (fileType === 'excel') {
+        toast({
+          title: '不支持预览',
+          description: 'Excel 文件不支持在线预览，请下载后查看',
+          variant: 'default',
+        });
+        return;
+      }
+
+      // 图片文件使用下载接口获取二进制数据
+      if (fileType === 'image') {
+        const response = await request.get(`/files/download/${filePath}`, {
+          responseType: 'blob',
+        });
+        const blob = new Blob([response.data]);
+        const imageUrl = window.URL.createObjectURL(blob);
+        setPreviewFile({ name: filename, content: imageUrl, type: fileType });
+        return;
+      }
+
+      // 文本文件使用 read 接口
       const response = await request.get(`/files/read/${filePath}`);
       if (response.data.success) {
         const content = response.data.data.content;
-        const filename = response.data.data.filename;
-        const fileType = getFileType(filename);
-
-        // Excel 文件不支持预览，提示用户下载
-        if (fileType === 'excel') {
-          toast({
-            title: '不支持预览',
-            description: 'Excel 文件不支持在线预览，请下载后查看',
-            variant: 'default',
-          });
-          return;
-        }
-
         setPreviewFile({ name: filename, content, type: fileType });
       }
     } catch (error) {
@@ -391,7 +404,16 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
       </div>
 
       {/* File Preview Dialog */}
-      <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
+      <Dialog
+        open={!!previewFile}
+        onOpenChange={() => {
+          // 如果是图片，释放 blob URL
+          if (previewFile?.type === 'image' && previewFile.content.startsWith('blob:')) {
+            window.URL.revokeObjectURL(previewFile.content);
+          }
+          setPreviewFile(null);
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -401,7 +423,19 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="h-[70vh] w-full rounded-md border p-4">
-            {previewFile?.type === 'markdown' ? (
+            {previewFile?.type === 'image' ? (
+              <div className="flex items-center justify-center h-full">
+                <img
+                  src={previewFile.content}
+                  alt={previewFile.name}
+                  className="max-w-full max-h-full object-contain"
+                  onLoad={() => {
+                    // 图片加载完成后释放 blob URL（可选）
+                    // window.URL.revokeObjectURL(previewFile.content);
+                  }}
+                />
+              </div>
+            ) : previewFile?.type === 'markdown' ? (
               <div
                 className="prose prose-sm dark:prose-invert max-w-none"
                 dangerouslySetInnerHTML={{
