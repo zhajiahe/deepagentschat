@@ -40,8 +40,13 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
+    // 如果是二进制响应（blob），直接返回
+    if (response.config.responseType === 'blob') {
+      return response;
+    }
+
     // 检查 BaseResponse 格式的错误
-    if (response.data && !response.data.success) {
+    if (response.data && typeof response.data === 'object' && !response.data.success) {
       // 即使 HTTP 状态码是 200，但业务逻辑失败
       const error: any = new Error(response.data.msg || '请求失败');
       error.response = {
