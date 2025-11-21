@@ -78,7 +78,7 @@ def sanitize_path(user_id: str | None, filename: str) -> Path:
 
 
 @tool(parse_docstring=True)
-async def shell_exec(command: str, timeout: int = 30, runtime: ToolRuntime[UserContext] = None) -> str:
+async def shell_exec(command: str, timeout: int = 30, runtime: ToolRuntime[UserContext] | None = None) -> str:
     """## 执行Bash命令
     - **文件浏览**: `ls`, `tree`, `cat`, `head`, `tail`
     - **搜索与处理**: `grep`, `sed`, `awk`, `jq` (处理 JSON)
@@ -130,7 +130,7 @@ async def write_file(
     filename: str,
     content: str,
     mode: Literal["overwrite", "append"] = "overwrite",
-    runtime: ToolRuntime[UserContext] = None,
+    runtime: ToolRuntime[UserContext] | None = None,
 ) -> str:
     """写入文件。
 
@@ -168,7 +168,7 @@ async def write_file(
 
 
 @tool(parse_docstring=True)
-async def read_file(filename: str, max_chars: int = 2000, runtime: ToolRuntime[UserContext] = None) -> str:
+async def read_file(filename: str, max_chars: int = 2000, runtime: ToolRuntime[UserContext] | None = None) -> str:
     """读取文件。
 
     Args:
@@ -213,6 +213,7 @@ ALL_TOOLS = [
 # ============ 使用示例 ============
 if __name__ == "__main__":
     import asyncio
+    from typing import Any
 
     from langchain.agents import create_agent
     from langchain_openai import ChatOpenAI
@@ -220,7 +221,7 @@ if __name__ == "__main__":
     model = ChatOpenAI(model="gpt-4o", temperature=0)
 
     # 示例 1: 使用用户隔离
-    agent = create_agent(
+    agent: Any = create_agent(
         model,
         tools=ALL_TOOLS,
         context_schema=UserContext,
@@ -234,7 +235,7 @@ if __name__ == "__main__":
         print(result["messages"][-1].content)
 
     # 示例 2: 使用公共目录（不传 context）
-    agent_public = create_agent(
+    agent_public: Any = create_agent(
         model,
         tools=ALL_TOOLS,
     )

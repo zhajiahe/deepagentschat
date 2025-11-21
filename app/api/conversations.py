@@ -474,7 +474,7 @@ async def get_messages(
 
         message_list.append(
             MessageResponse(
-                id=msg_id,
+                id=int(msg_id) if isinstance(msg_id, int | str) and str(msg_id).isdigit() else idx,
                 role=msg["role"],
                 content=msg["content"],
                 metadata=msg.get("metadata", {}),

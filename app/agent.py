@@ -56,7 +56,7 @@ async def get_agent(
     secret_api_key: SecretStr | None = SecretStr(api_key_value) if api_key_value else None
 
     model = ChatOpenAI(
-        model=llm_model or os.getenv("DEFAULT_LLM_MODEL", "Qwen/Qwen3-8B"),
+        model=llm_model or os.getenv("DEFAULT_LLM_MODEL") or "Qwen/Qwen3-8B",
         api_key=secret_api_key,
         base_url=base_url or os.getenv("OPENAI_API_BASE"),
         max_completion_tokens=max_tokens,

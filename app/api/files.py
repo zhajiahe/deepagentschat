@@ -28,6 +28,7 @@ class FileInfo(BaseModel):
     filename: str
     size: int
     path: str
+    is_dir: bool = False  # 是否为目录
 
 
 class FileListResponse(BaseModel):
@@ -110,12 +111,13 @@ async def upload_file(
 
 
 @router.get("/list", response_model=BaseResponse[FileListResponse])
-async def list_files(current_user: CurrentUser):
+async def list_files(current_user: CurrentUser, subdir: str = ""):
     """
-    列出用户工作目录中的所有文件
+    列出用户工作目录中的文件和文件夹
 
     Args:
         current_user: 当前登录用户
+        subdir: 子目录路径（相对于用户根目录）
 
     Returns:
         FileListResponse: 文件列表
@@ -123,14 +125,42 @@ async def list_files(current_user: CurrentUser):
     try:
         user_path = get_user_storage_path(current_user.id)
 
+        # 清理子目录路径，防止路径遍历
+        if subdir:
+            subdir = subdir.replace("../", "").replace("..\\", "").strip("/")
+            target_path = (user_path / subdir).resolve()
+            # 确保目标路径在用户目录内
+            if not str(target_path).startswith(str(user_path.resolve())):
+                raise HTTPException(status_code=403, detail="无效的目录路径")
+        else:
+            target_path = user_path
+
+        if not target_path.exists():
+            raise HTTPException(status_code=404, detail=f"目录不存在: {subdir}")
+
         files = []
-        for file_path in user_path.iterdir():
-            if file_path.is_file():
+        for item_path in sorted(target_path.iterdir()):
+            # 计算相对路径
+            rel_path = str(item_path.relative_to(user_path))
+
+            if item_path.is_dir():
+                # 目录
                 files.append(
                     FileInfo(
-                        filename=file_path.name,
-                        size=file_path.stat().st_size,
-                        path=file_path.name,
+                        filename=item_path.name,
+                        size=0,
+                        path=rel_path,
+                        is_dir=True,
+                    )
+                )
+            elif item_path.is_file():
+                # 文件
+                files.append(
+                    FileInfo(
+                        filename=item_path.name,
+                        size=item_path.stat().st_size,
+                        path=rel_path,
+                        is_dir=False,
                     )
                 )
 
@@ -140,18 +170,20 @@ async def list_files(current_user: CurrentUser):
             msg="获取文件列表成功",
             data=FileListResponse(files=files, total=len(files)),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to list files: {e}")
         raise HTTPException(status_code=500, detail=f"获取文件列表失败: {str(e)}") from e
 
 
-@router.get("/read/{filename}")
-async def read_file(filename: str, current_user: CurrentUser):
+@router.get("/read/{file_path:path}")
+async def read_file(file_path: str, current_user: CurrentUser):
     """
     读取用户工作目录中的文件内容
 
     Args:
-        filename: 文件名
+        file_path: 文件路径（相对于用户根目录）
         current_user: 当前登录用户
 
     Returns:
@@ -160,22 +192,29 @@ async def read_file(filename: str, current_user: CurrentUser):
     try:
         user_path = get_user_storage_path(current_user.id)
 
-        # 确保文件名安全
-        safe_filename = Path(filename).name
-        file_path = user_path / safe_filename
+        # 清理路径，防止路径遍历
+        safe_path = file_path.replace("../", "").replace("..\\", "")
+        full_path = (user_path / safe_path).resolve()
 
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
+        # 确保路径在用户目录内
+        if not str(full_path).startswith(str(user_path.resolve())):
+            raise HTTPException(status_code=403, detail="无效的文件路径")
+
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
+
+        if not full_path.is_file():
+            raise HTTPException(status_code=400, detail=f"{file_path} 不是文件")
 
         # 读取文件
-        with open(file_path, encoding="utf-8", errors="ignore") as f:
+        with open(full_path, encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
         return BaseResponse(
             success=True,
             code=200,
             msg="读取文件成功",
-            data={"filename": safe_filename, "content": content},
+            data={"filename": Path(file_path).name, "content": content},
         )
     except HTTPException:
         raise
@@ -184,13 +223,13 @@ async def read_file(filename: str, current_user: CurrentUser):
         raise HTTPException(status_code=500, detail=f"读取文件失败: {str(e)}") from e
 
 
-@router.delete("/{filename}")
-async def delete_file(filename: str, current_user: CurrentUser):
+@router.delete("/{file_path:path}")
+async def delete_file(file_path: str, current_user: CurrentUser):
     """
     删除用户工作目录中的文件
 
     Args:
-        filename: 文件名
+        file_path: 文件路径（相对于用户根目录）
         current_user: 当前登录用户
 
     Returns:
@@ -199,29 +238,40 @@ async def delete_file(filename: str, current_user: CurrentUser):
     try:
         user_path = get_user_storage_path(current_user.id)
 
-        # 确保文件名安全
-        safe_filename = Path(filename).name
-        file_path = user_path / safe_filename
+        # 清理路径，防止路径遍历
+        safe_path = file_path.replace("../", "").replace("..\\", "")
+        full_path = (user_path / safe_path).resolve()
 
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
+        # 确保路径在用户目录内
+        if not str(full_path).startswith(str(user_path.resolve())):
+            raise HTTPException(status_code=403, detail="无效的文件路径")
 
-        # 删除文件
-        file_path.unlink()
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
 
-        logger.info(f"User {current_user.id} deleted file: {safe_filename}")
+        # 删除文件或目录
+        if full_path.is_file():
+            full_path.unlink()
+        elif full_path.is_dir():
+            import shutil
+
+            shutil.rmtree(full_path)
+        else:
+            raise HTTPException(status_code=400, detail="无效的文件类型")
+
+        logger.info(f"User {current_user.id} deleted: {file_path}")
 
         return BaseResponse(
             success=True,
             code=200,
-            msg="删除文件成功",
-            data={"filename": safe_filename, "message": f"文件 {safe_filename} 已删除"},
+            msg="删除成功",
+            data={"filename": Path(file_path).name, "message": f"{Path(file_path).name} 已删除"},
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to delete file: {e}")
-        raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}") from e
 
 
 @router.delete("")
