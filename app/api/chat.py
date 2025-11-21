@@ -509,7 +509,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
                             elif block_type == "tool_call_chunk":
                                 tool_call_id = block.get("id", "")
                                 tool_name = block.get("name")
-                                tool_args = block.get("args", "")
+                                tool_args = block.get("args") or ""  # 确保不是 None
 
                                 # 如果是新的工具调用（有 id 和 name）
                                 if tool_call_id and tool_name:
