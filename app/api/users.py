@@ -9,6 +9,7 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, status
+from loguru import logger
 from sqlalchemy import func, select
 
 from app.core.config import settings
@@ -578,10 +579,14 @@ async def list_available_models(_current_user: CurrentUser, db: DBSession):
     if not api_key:
         raise_business_error("API 密钥未配置")
     assert isinstance(base_url, str)
-    base_url = base_url + "/models"
+
+    # 构建模型列表 URL（确保不会重复添加 /models）
+    if base_url.endswith("/"):
+        base_url = base_url.rstrip("/")
+    models_url = f"{base_url}/models"
 
     # 检查缓存
-    cache_key = f"{base_url}:{api_key}"
+    cache_key = f"{models_url}:{api_key}"
     if cache_key in _models_cache:
         data, timestamp = _models_cache[cache_key]
         if time.time() - timestamp < CACHE_TTL:
@@ -594,14 +599,27 @@ async def list_available_models(_current_user: CurrentUser, db: DBSession):
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(base_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=10.0)
+            response = await client.get(models_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=10.0)
     except httpx.TimeoutException:
         raise_business_error("获取模型列表超时")
     except Exception as e:
         raise_business_error(f"获取模型列表失败: {str(e)}")
 
     if response.status_code != 200:
-        raise_business_error(f"获取模型列表失败: {response.status_code}")
+        # 记录详细的错误信息
+        try:
+            error_detail = response.json()
+            logger.error(
+                f"获取模型列表失败 - URL: {models_url}, Status: {response.status_code}, Detail: {error_detail}"
+            )
+            raise_business_error(
+                f"获取模型列表失败: HTTP {response.status_code} - {error_detail.get('message', error_detail)}"
+            )
+        except Exception:
+            logger.error(
+                f"获取模型列表失败 - URL: {models_url}, Status: {response.status_code}, Body: {response.text[:200]}"
+            )
+            raise_business_error(f"获取模型列表失败: HTTP {response.status_code}")
 
     models_data = response.json().get("data", [])
     # 提取模型 ID 列表
