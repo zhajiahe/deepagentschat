@@ -527,7 +527,7 @@ wheels = [
 ]
 
 [[package]]
-name = "fastapi-template"
+name = "DeepAgentChat"
 version = "0.4.0"
 source = { virtual = "." }
 dependencies = [

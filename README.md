@@ -56,8 +56,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/zhajiahe/fastapi-template.git
-cd fastapi-template
+git clone https://github.com/zhajiahe/deepagentschat.git
+cd deepagentschat
 
 # 安装后端依赖
 uv sync
@@ -84,7 +84,7 @@ SECRET_KEY=your-secret-key-change-in-production
 REFRESH_SECRET_KEY=your-refresh-secret-key-change-in-production
 
 # 应用配置
-APP_NAME=FastAPI-Template
+APP_NAME=DeepAgentChat
 DEBUG=true
 
 # LLM 配置（可选）

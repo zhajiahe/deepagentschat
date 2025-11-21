@@ -30,7 +30,7 @@ pip install httpx
 
 ```bash
 # 确保应用正在运行
-cd /data2/zhanghuaao/project/fastapi-template
+cd /data2/zhanghuaao/project/DeepAgentChat
 uv run uvicorn app.main:app --reload
 ```
 

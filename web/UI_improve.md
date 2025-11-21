@@ -1,4 +1,4 @@
-下面给你一套 **2025 年 11 月最新 Grok（grok.x.ai）真实 UI 的完整参考方案**，专门针对你这个 fastapi-template/web 项目（langgraph 分支）来改，让它拥有：
+下面给你一套 **2025 年 11 月最新 Grok（grok.x.ai）真实 UI 的完整参考方案**，专门针对你这个 DeepAgentChat/web 项目（langgraph 分支）来改，让它拥有：
 
 - 真正的 Grok 左侧侧边栏（对话历史）
 - 真正的 Grok 右侧聊天输出区 + 输入框
