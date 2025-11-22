@@ -130,11 +130,17 @@ class SharedContainerManager:
             stdout, stderr = exec_result.output
             exit_code = exec_result.exit_code
 
+            # 隐藏绝对路径，让 Agent 对 user_id 无感
+            sensitive_path = f"/workspace/{user_id}"
+
             output = ""
             if stdout:
-                output += stdout.decode("utf-8", errors="replace")
+                out_str = stdout.decode("utf-8", errors="replace")
+                out_str = out_str.replace(sensitive_path, ".")
+                output += out_str
             if stderr:
                 stderr_text = stderr.decode("utf-8", errors="replace")
+                stderr_text = stderr_text.replace(sensitive_path, ".")
                 if stderr_text.strip():
                     output += f"\n[STDERR]:\n{stderr_text}"
 
@@ -146,10 +152,24 @@ class SharedContainerManager:
 
     def _ensure_user_dir(self, user_id: str):
         """确保用户目录存在"""
+        if user_id == "root":
+            return
+
         try:
-            self.exec_command(
-                user_id="root",  # 使用 root 创建目录
-                command=f"mkdir -p /workspace/{user_id} && chown 1000:1000 /workspace/{user_id}",
+            # 直接使用 container.exec_run 避免递归调用 exec_command
+            # 初始化脚本：创建目录并复制工具
+            # 注意：容器启用了 cap_drop=["ALL"]，root 可能没有权限操作，
+            # 但 /workspace 属于 tooluser，所以我们直接用 tooluser 执行
+            init_cmd = (
+                f"mkdir -p /workspace/{user_id} && "
+                f"if [ -d /opt/tools ] && [ ! -d /workspace/{user_id}/.tools ]; then "
+                f"cp -r /opt/tools /workspace/{user_id}/.tools; fi"
+            )
+
+            container = self.ensure_container()
+            container.exec_run(
+                cmd=["bash", "-c", init_cmd],
+                user="tooluser",
                 workdir="/workspace",
             )
         except Exception as e:
@@ -262,15 +282,18 @@ class SharedContainerManager:
             if not line or line.startswith("total"):
                 continue
 
-            parts = line.split(maxsplit=8)
-            if len(parts) < 9:
+            # ls -lAh --time-style=long-iso 输出格式：
+            # 权限 链接数 所有者 组 大小 日期 时间 文件名
+            # -rw-r--r-- 1 tooluser tooluser 595K 2025-11-22 16:30 filename.docx
+            parts = line.split(maxsplit=7)
+            if len(parts) < 8:
                 continue
 
             permissions = parts[0]
             size = parts[4]
             date = parts[5]
             time = parts[6]
-            filename = parts[8]
+            filename = parts[7]
 
             # 跳过 . 和 ..
             if filename in [".", ".."]:

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Docker 工具配置
-    USE_DOCKER_TOOLS: bool = False
+    USE_DOCKER_TOOLS: bool = True
     DOCKER_IMAGE: str = "deepagentschat-tools:latest"
     DOCKER_CPU_LIMIT: float = 1.0
     DOCKER_MEMORY_LIMIT: str = "512m"

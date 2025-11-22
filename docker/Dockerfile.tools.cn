@@ -68,6 +68,10 @@ RUN useradd -m -u 1000 -s /bin/bash tooluser && \
     mkdir -p /workspace && \
     chown -R tooluser:tooluser /workspace
 
+# 复制工具脚本到镜像中
+COPY app/experiment_tools /opt/tools
+RUN chown -R tooluser:tooluser /opt/tools
+
 # 设置工作目录
 WORKDIR /workspace
 

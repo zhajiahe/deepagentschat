@@ -17,7 +17,12 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from app.tools import ALL_TOOLS, UserContext
+from app.core.config import settings
+
+if settings.USE_DOCKER_TOOLS:
+    from app.tools_docker import ALL_TOOLS, UserContext
+else:
+    from app.tools import ALL_TOOLS, UserContext  # type: ignore
 
 load_dotenv()
 client = MultiServerMCPClient(

@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: fastapi-app
+    container_name: deepagentschat-app
     ports:
       - "8000:8000"
     env_file:
@@ -55,3 +55,5 @@ services:
 
 volumes:
   tools_data:
+    name: deepagentschat-workspace
+    external: true # 使用代码中定义的卷，避免重复创建或前缀问题

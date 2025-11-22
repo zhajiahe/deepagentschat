@@ -79,7 +79,9 @@ async def upload_file(
             success = manager.upload_file(user_id=str(current_user.id), file_content=content, filename=safe_filename)
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to upload file to container")
-            file_path = f"/workspace/{current_user.id}/{safe_filename}"  # 容器内路径
+            # 为了让 Agent 对用户 ID 无感，我们只返回文件名（相对于工作目录）
+            # Agent 的工作目录已经是 /workspace/{user_id}
+            file_path = safe_filename
         else:
             # 本地模式：直接写入文件系统
             user_path = get_user_storage_path(current_user.id)
