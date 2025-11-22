@@ -34,33 +34,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # 编译工具（某些 Python 包需要）
     gcc \
     g++ \
+    gfortran \
     make \
     # 清理
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 使用 uv 安装 Python 数据分析库
+# 使用 uv 安装 Python 数据分析库 (移除版本锁定以兼容 Python 3.13)
 RUN uv pip install --system --no-cache \
     # 数据处理
-    pandas==2.2.0 \
-    numpy==1.26.4 \
-    polars==0.20.0 \
+    pandas \
+    numpy \
+    polars \
     # 数据库
-    duckdb==1.1.0 \
-    sqlalchemy==2.0.36 \
+    duckdb \
+    sqlalchemy \
     # 文件格式
-    openpyxl==3.1.5 \
-    xlrd==2.0.1 \
+    openpyxl \
+    xlrd \
     # 数据可视化（可选）
-    matplotlib==3.8.0 \
-    seaborn==0.13.0 \
+    matplotlib \
+    seaborn \
     # 工具
-    tabulate==0.9.0 \
-    requests==2.32.3 \
-    beautifulsoup4==4.12.3 \
+    tabulate \
+    requests \
+    beautifulsoup4 \
     # 科学计算（可选）
-    scipy==1.12.0 \
-    scikit-learn==1.4.0
+    scipy \
+    scikit-learn
 
 # 创建非 root 用户
 RUN useradd -m -u 1000 -s /bin/bash tooluser && \
