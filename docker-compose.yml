@@ -1,0 +1,57 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi-app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # 强制启用 Docker 工具模式
+      - USE_DOCKER_TOOLS=true
+      - DOCKER_IMAGE=deepagentschat-tools:latest
+      # 覆盖数据库路径以使用挂载卷
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/langgraph_app.db
+      - CHECKPOINT_DB_PATH=/app/data/langgraph_app.db
+    volumes:
+      # 必须挂载 Docker Socket 以便 App 管理工具容器
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 数据持久化
+      - ./data:/app/data
+    depends_on:
+      tools:
+        condition: service_started
+    restart: unless-stopped
+
+  tools:
+    build:
+      context: .
+      # 默认使用国内加速版构建，如果需要原版请修改为 docker/Dockerfile.tools
+      dockerfile: docker/Dockerfile.tools.cn
+    image: deepagentschat-tools:latest
+    container_name: deepagentschat-tools
+    # 安全隔离：无网络访问
+    network_mode: none
+    # 资源限制（可选，根据需要取消注释）
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2.0'
+    #       memory: 1G
+    volumes:
+      # 工具容器的文件持久化
+      - tools_data:/workspace
+    # 保持容器运行
+    command: ["/bin/bash", "-c", "trap : TERM INT; sleep infinity & wait"]
+    restart: unless-stopped
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "print('healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  tools_data:

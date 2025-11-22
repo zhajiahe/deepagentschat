@@ -1,5 +1,5 @@
 # 使用多阶段构建减小镜像体积
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.13-slim-bookworm AS builder
 
 # 安装 uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
@@ -25,7 +25,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 # ==========================================
 # 运行时镜像
-FROM python:3.12-slim-bookworm
+FROM python:3.13-slim-bookworm
 
 # 设置工作目录
 WORKDIR /app
