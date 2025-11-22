@@ -119,22 +119,69 @@ def get_work_path(user_id: str | None = None) -> Path:
     return PUBLIC_DIR
 
 
+def _ensure_tools_dependencies() -> None:
+    """
+    确保工具虚拟环境的依赖已安装（全局共享，只需安装一次）
+    """
+    import subprocess
+
+    deps_marker = TOOLS_VENV_DIR / ".deps_installed"
+
+    # 如果依赖已安装，跳过
+    if deps_marker.exists():
+        return
+
+    source_tools = Path(__file__).parent / "experiment_tools"
+    requirements_file = source_tools / "requirements.txt"
+
+    if not requirements_file.exists():
+        print(f"[WARNING] requirements.txt 不存在: {requirements_file}")
+        return
+
+    print("[INFO] 正在安装工具依赖到全局工具虚拟环境...")
+    try:
+        # 确保工具虚拟环境存在
+        venv_bin = ensure_tools_venv()
+        venv_python = venv_bin / "python"
+
+        # 使用工具虚拟环境的 pip 安装依赖
+        result = subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "-r", str(requirements_file), "-q"],
+            capture_output=True,
+            text=True,
+            timeout=180,  # 3分钟超时
+        )
+
+        if result.returncode == 0:
+            # 创建标记文件
+            deps_marker.write_text("installed")
+            print("[INFO] 工具依赖安装成功")
+        else:
+            print(f"[WARNING] 工具依赖安装失败: {result.stderr}")
+    except subprocess.TimeoutExpired:
+        print("[WARNING] 依赖安装超时，跳过")
+    except Exception as e:
+        print(f"[WARNING] 安装依赖时出错: {e}")
+
+
 def _ensure_user_tools(user_path: Path) -> None:
     """
-    确保用户目录下有数据分析工具，并安装必要的依赖
+    确保用户目录下有数据分析工具
 
     Args:
         user_path: 用户工作目录
     """
+    # 先确保全局工具依赖已安装（即使用户目录的工具已存在）
+    _ensure_tools_dependencies()
+
     tools_dir = user_path / ".tools"
 
-    # 如果工具目录已存在，跳过
+    # 如果工具目录已存在，跳过复制
     if tools_dir.exists():
         return
 
     # 复制工具到用户目录
     import shutil
-    import subprocess
 
     source_tools = Path(__file__).parent / "experiment_tools"
 
@@ -146,34 +193,6 @@ def _ensure_user_tools(user_path: Path) -> None:
         # 复制整个 experiment_tools 目录到用户的 .tools 目录
         shutil.copytree(source_tools, tools_dir, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"))
         print(f"[INFO] 已为用户初始化数据分析工具: {tools_dir}")
-
-        # 安装工具依赖
-        requirements_file = tools_dir / "requirements.txt"
-        if requirements_file.exists():
-            print("[INFO] 正在安装工具依赖...")
-            try:
-                # 确保工具虚拟环境存在
-                venv_bin = ensure_tools_venv()
-                venv_python = venv_bin / "python"
-
-                # 使用工具虚拟环境的 pip 安装依赖
-                result = subprocess.run(
-                    [str(venv_python), "-m", "pip", "install", "-r", str(requirements_file), "-q"],
-                    capture_output=True,
-                    text=True,
-                    timeout=120,  # 2分钟超时
-                )
-
-                if result.returncode == 0:
-                    print("[INFO] 工具依赖安装成功")
-                else:
-                    print(f"[WARNING] 工具依赖安装失败: {result.stderr}")
-                    # 不抛出异常，允许工具在没有依赖的情况下继续
-            except subprocess.TimeoutExpired:
-                print("[WARNING] 依赖安装超时，跳过")
-            except Exception as e:
-                print(f"[WARNING] 安装依赖时出错: {e}")
-                # 不抛出异常，允许工具在没有依赖的情况下继续
 
     except Exception as e:
         print(f"[ERROR] 复制工具失败: {e}")
@@ -218,36 +237,8 @@ def ensure_tools_venv() -> Path:
             capture_output=True,
         )
 
-        # 创建 pyvenv.cfg 文件,设置 include-system-site-packages = true
-        pyvenv_cfg = TOOLS_VENV_DIR / "pyvenv.cfg"
-        if pyvenv_cfg.exists() and project_venv.exists():
-            # 读取原有配置
-            cfg_content = pyvenv_cfg.read_text()
-            # 添加项目虚拟环境的 site-packages 到 PYTHONPATH
-            # 通过修改 pyvenv.cfg 实现
-            cfg_lines = cfg_content.split("\n")
-            new_lines = []
-            for line in cfg_lines:
-                if line.startswith("include-system-site-packages"):
-                    new_lines.append("include-system-site-packages = true")
-                else:
-                    new_lines.append(line)
-            # 添加项目虚拟环境路径
-            new_lines.append(f"# Project venv: {project_venv}")
-            pyvenv_cfg.write_text("\n".join(new_lines))
-
-            # 创建 .pth 文件,将项目虚拟环境的 site-packages 添加到 Python 路径
-            site_packages = (
-                TOOLS_VENV_DIR / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
-            )
-            site_packages.mkdir(parents=True, exist_ok=True)
-            pth_file = site_packages / "project_venv.pth"
-            project_site_packages = (
-                project_venv / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
-            )
-            if project_site_packages.exists():
-                pth_file.write_text(str(project_site_packages))
-                print(f"[INFO] 已链接项目依赖: {project_site_packages}")
+        # 不链接项目依赖，保持工具虚拟环境完全独立
+        # 这样可以避免依赖冲突（如 numpy 版本不兼容）
 
         print(f"[INFO] 工具虚拟环境创建成功: {TOOLS_VENV_DIR}")
         return venv_bin
@@ -319,7 +310,7 @@ async def shell_exec(
     - `python .tools/query/data_query.py "COPY (SELECT * FROM 'data.csv') TO 'output.csv'"` - 导出结果
 
     **文件读取**:
-    - `python .tools/files/read_file.py <filename>` - 智能文件读取(多编码支持)
+    - `python .tools/files/read_file.py <filename>` - 查看文本文件内容
     - `python .tools/files/read_url.py <url> [--timeout 30]` - 读取URL内容
 
     **推荐工作流**:
@@ -338,6 +329,11 @@ async def shell_exec(
 
         # 确保工具虚拟环境存在并获取其 bin 目录
         venv_bin = ensure_tools_venv()
+        venv_python = venv_bin / "python"
+
+        # 如果命令是运行 .tools/ 下的 Python 脚本，替换为工具虚拟环境的 python
+        if command.strip().startswith("python .tools/") and venv_python.exists():
+            command = command.replace("python .tools/", f"{venv_python} .tools/", 1)
 
         # 构建环境变量,使用独立的工具虚拟环境
         env = os.environ.copy()

@@ -388,9 +388,6 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Async
     # 获取用户配置（包括 LLM 参数）
     config, context, llm_params = await get_user_config(current_user.id, thread_id, db)
 
-    # 调试日志：验证 recursion_limit 是否正确设置
-    logger.debug(f"Stream config for thread {thread_id}: recursion_limit={config.get('recursion_limit', 'NOT SET')}")
-
     async def event_generator():
         stopped = False
         # 注册任务（使用当前协程作为任务标识）
