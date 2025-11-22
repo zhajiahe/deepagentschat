@@ -54,7 +54,7 @@ export const Settings = () => {
   // 表单数据
   const [formData, setFormData] = useState({
     llm_model: '',
-    max_tokens: 2000,
+    max_tokens: 32768,
   });
 
   // 用户信息编辑
@@ -117,7 +117,7 @@ export const Settings = () => {
         setSettings(data);
         setFormData({
           llm_model: data.llm_model || '',
-          max_tokens: data.max_tokens || 2000,
+          max_tokens: data.max_tokens || 32768,
         });
       }
     } catch (err: any) {
@@ -132,7 +132,7 @@ export const Settings = () => {
       // 即使加载失败，也设置默认值以防止白屏
       setFormData({
         llm_model: '',
-        max_tokens: 2000,
+        max_tokens: 32768,
       });
     } finally {
       setLoading(false);

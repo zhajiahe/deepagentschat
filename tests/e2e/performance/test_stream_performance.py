@@ -319,20 +319,6 @@ class StreamPerformanceAnalyzer:
 
         avg_first_chunk = statistics.mean(first_chunk_durations)
 
-        if avg_first_chunk > 2000:
-            print("   ⚠️  首字节延迟较高 (> 2s)")
-            print("      建议:")
-            print("      - 优化 LLM API 连接")
-            print("      - 检查网络延迟")
-            print("      - 优化数据库查询")
-        elif avg_first_chunk > 1000:
-            print("   ℹ️  首字节延迟适中 (1-2s)")
-            print("      建议: 继续监控")
-        else:
-            print("   ✅ 首字节延迟良好 (< 1s)")
-
-        print("\n" + "=" * 70)
-
 
 if __name__ == "__main__":
     analyzer = StreamPerformanceAnalyzer()

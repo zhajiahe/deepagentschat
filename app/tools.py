@@ -4,6 +4,76 @@ Agent Tools - 支持用户隔离的工具集
 使用 ToolRuntime 实现可选的用户隔离：
 - 如果提供 user_id（通过 context），操作限制在用户目录
 - 如果未提供 user_id，使用公共目录
+
+## 数据分析工具集成 (experiment_tools)
+
+项目集成了强大的数据分析工具，每个用户目录下自动部署到 `.tools/` 目录，可通过 shell_exec 调用：
+
+### 自动部署
+- 用户首次使用时，自动复制工具到用户目录的 `.tools/` 子目录
+- 自动安装工具依赖 (duckdb, pandas, openpyxl, polars, tabulate 等)
+- 每个用户拥有独立的工具副本，互不干扰
+- 工具路径相对于用户工作目录，使用简洁
+
+### 文件读写工具 (.tools/files/)
+1. **文件读取**: `python .tools/files/read_file.py <filename>`
+   - 智能编码检测 (utf-8, gbk, gb2312, latin-1)
+   - 大文件警告和截断
+   - 支持所有文本格式
+
+2. **URL 读取**: `python .tools/files/read_url.py <url> [options]`
+   - 支持 HTTP/HTTPS 协议
+   - 自动编码检测和内容类型识别
+   - 选项: --timeout, --max-size, --save, --headers, --show-headers
+
+### 数据查询工具 (.tools/query/)
+**SQL 查询**: `python .tools/query/data_query.py "SELECT * FROM 'data.csv'"`
+- 基于 DuckDB，支持 CSV/JSON/Parquet/Excel
+- 文件可直接作为表名
+- 支持复杂 SQL: JOIN, GROUP BY, 聚合函数等
+- 示例:
+  ```bash
+  # 基本查询
+  python .tools/query/data_query.py "SELECT * FROM 'sales.csv' LIMIT 10"
+
+  # 聚合分析
+  python .tools/query/data_query.py "SELECT product, SUM(amount) FROM 'sales.csv' GROUP BY product"
+
+  # 导出结果
+  python .tools/query/data_query.py "COPY (SELECT * FROM 'data.csv') TO 'output.csv'"
+  ```
+
+### 数据统计工具 (.tools/statistics/)
+1. **描述性统计**: `python .tools/statistics/describe.py <file> [--format auto]`
+   - 显示 count, unique, mean, std, min, max 等统计信息
+   - 支持 CSV/JSON/Parquet/Excel
+
+2. **数据预览**: `python .tools/statistics/head.py <file> [--limit 10]`
+   - 显示数据前 N 行
+   - 快速了解数据结构
+
+3. **唯一值分析**: `python .tools/statistics/unique.py <file> [--topk 10]`
+   - 显示每列的 Top K 最常见值
+   - 用于数据质量检查
+
+### 推荐工作流
+```bash
+# 1. 数据探索
+python .tools/statistics/head.py data.csv
+python .tools/statistics/describe.py data.csv
+
+# 2. 数据分析
+python .tools/query/data_query.py "SELECT category, COUNT(*) FROM 'data.csv' GROUP BY category"
+
+# 3. 数据质量检查
+python .tools/statistics/unique.py data.csv
+```
+
+### 注意事项
+- 工具自动部署到每个用户的 `.tools/` 目录
+- 所有工具在用户工作目录下执行 (通过 shell_exec 的 cwd)
+- 大文件建议使用 SQL 查询而非完整读取
+- 支持管道操作: `cat data.csv | grep "2024" | ...`
 """
 
 import asyncio
@@ -43,8 +113,70 @@ def get_work_path(user_id: str | None = None) -> Path:
     if user_id:
         user_path = STORAGE_ROOT / str(user_id)
         user_path.mkdir(parents=True, exist_ok=True)
+        # 自动初始化用户工具
+        _ensure_user_tools(user_path)
         return user_path
     return PUBLIC_DIR
+
+
+def _ensure_user_tools(user_path: Path) -> None:
+    """
+    确保用户目录下有数据分析工具，并安装必要的依赖
+
+    Args:
+        user_path: 用户工作目录
+    """
+    tools_dir = user_path / ".tools"
+
+    # 如果工具目录已存在，跳过
+    if tools_dir.exists():
+        return
+
+    # 复制工具到用户目录
+    import shutil
+    import subprocess
+
+    source_tools = Path(__file__).parent / "experiment_tools"
+
+    if not source_tools.exists():
+        print(f"[WARNING] 工具源目录不存在: {source_tools}")
+        return
+
+    try:
+        # 复制整个 experiment_tools 目录到用户的 .tools 目录
+        shutil.copytree(source_tools, tools_dir, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"))
+        print(f"[INFO] 已为用户初始化数据分析工具: {tools_dir}")
+
+        # 安装工具依赖
+        requirements_file = tools_dir / "requirements.txt"
+        if requirements_file.exists():
+            print("[INFO] 正在安装工具依赖...")
+            try:
+                # 确保工具虚拟环境存在
+                venv_bin = ensure_tools_venv()
+                venv_python = venv_bin / "python"
+
+                # 使用工具虚拟环境的 pip 安装依赖
+                result = subprocess.run(
+                    [str(venv_python), "-m", "pip", "install", "-r", str(requirements_file), "-q"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,  # 2分钟超时
+                )
+
+                if result.returncode == 0:
+                    print("[INFO] 工具依赖安装成功")
+                else:
+                    print(f"[WARNING] 工具依赖安装失败: {result.stderr}")
+                    # 不抛出异常，允许工具在没有依赖的情况下继续
+            except subprocess.TimeoutExpired:
+                print("[WARNING] 依赖安装超时，跳过")
+            except Exception as e:
+                print(f"[WARNING] 安装依赖时出错: {e}")
+                # 不抛出异常，允许工具在没有依赖的情况下继续
+
+    except Exception as e:
+        print(f"[ERROR] 复制工具失败: {e}")
 
 
 def ensure_tools_venv() -> Path:
@@ -167,10 +299,33 @@ async def shell_exec(
     timeout: int = 30,
 ) -> str:
     """## 执行Bash命令(使用独立的工具虚拟环境)
+
+    ### 基础命令工具
     - **文件浏览**: `ls`, `tree`, `cat`, `head`, `tail`
     - **搜索与处理**: `grep`, `sed`, `awk`, `jq` (处理 JSON)
     - **编程环境**: `python` (用于复杂逻辑或数学计算,使用独立的工具虚拟环境)
     - **网络**: `curl` (获取网页内容)
+
+    ### 数据分析工具 (自动部署到 .tools/ 目录)
+
+    **数据预览与统计**:
+    - `python .tools/statistics/head.py <file> [--limit 10]` - 显示数据前N行
+    - `python .tools/statistics/describe.py <file>` - 描述性统计(count, mean, std, min, max等)
+    - `python .tools/statistics/unique.py <file> [--topk 10]` - 分析每列Top K最常见值
+
+    **SQL查询** (支持 CSV/JSON/Parquet/Excel):
+    - `python .tools/query/data_query.py "SELECT * FROM 'data.csv' LIMIT 10"` - 基本查询
+    - `python .tools/query/data_query.py "SELECT col, COUNT(*) FROM 'data.csv' GROUP BY col"` - 聚合分析
+    - `python .tools/query/data_query.py "COPY (SELECT * FROM 'data.csv') TO 'output.csv'"` - 导出结果
+
+    **文件读取**:
+    - `python .tools/files/read_file.py <filename>` - 智能文件读取(多编码支持)
+    - `python .tools/files/read_url.py <url> [--timeout 30]` - 读取URL内容
+
+    **推荐工作流**:
+    1. 数据探索: `head.py` → `describe.py` → `unique.py`
+    2. 数据分析: `data_query.py` 执行SQL查询
+    3. 结果导出: 使用 `COPY TO` 命令
 
     Args:
         command: 要执行的 Bash 命令
