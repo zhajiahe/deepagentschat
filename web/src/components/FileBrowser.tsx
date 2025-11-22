@@ -123,40 +123,27 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     if (['py', 'js', 'ts', 'tsx', 'jsx', 'java', 'cpp', 'c', 'go', 'rs'].includes(ext)) return 'code';
     if (['csv'].includes(ext)) return 'csv';
     if (['xlsx', 'xls'].includes(ext)) return 'excel';
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
     return 'text';
   };
 
   const handlePreview = async (filePath: string) => {
     try {
-      const filename = filePath.split('/').pop() || filePath;
-      const fileType = getFileType(filename);
-
-      // Excel 文件不支持预览，提示用户下载
-      if (fileType === 'excel') {
-        toast({
-          title: '不支持预览',
-          description: 'Excel 文件不支持在线预览，请下载后查看',
-          variant: 'default',
-        });
-        return;
-      }
-
-      // 图片文件使用下载接口获取二进制数据
-      if (fileType === 'image') {
-        const response = await request.get(`/files/download/${filePath}`, {
-          responseType: 'blob',
-        });
-        const blob = new Blob([response.data]);
-        const imageUrl = window.URL.createObjectURL(blob);
-        setPreviewFile({ name: filename, content: imageUrl, type: fileType });
-        return;
-      }
-
-      // 文本文件使用 read 接口
       const response = await request.get(`/files/read/${filePath}`);
       if (response.data.success) {
         const content = response.data.data.content;
+        const filename = response.data.data.filename;
+        const fileType = getFileType(filename);
+
+        // Excel 文件不支持预览，提示用户下载
+        if (fileType === 'excel') {
+          toast({
+            title: '不支持预览',
+            description: 'Excel 文件不支持在线预览，请下载后查看',
+            variant: 'default',
+          });
+          return;
+        }
+
         setPreviewFile({ name: filename, content, type: fileType });
       }
     } catch (error) {
@@ -329,7 +316,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             {files.map((file) => (
               <div
                 key={file.path}
-                className="p-3 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
+                className="group p-3 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
                 onClick={() => {
                   if (file.is_dir) {
                     handleEnterDirectory(file.path);
@@ -338,27 +325,30 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                   }
                 }}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {file.is_dir ? (
-                        <Folder className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                      ) : (
-                        <File className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      )}
-                      <p className="text-sm font-medium truncate" title={file.filename}>
-                        {file.filename}
-                      </p>
-                    </div>
-                    {!file.is_dir && <p className="text-xs text-muted-foreground mt-1">{formatFileSize(file.size)}</p>}
+                {/* 文件名和图标 */}
+                <div className="flex items-center gap-2 mb-2">
+                  {file.is_dir ? (
+                    <Folder className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                  ) : (
+                    <File className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  )}
+                  <p className="text-sm font-medium truncate flex-1" title={file.filename}>
+                    {file.filename}
+                  </p>
+                </div>
+
+                {/* 文件大小和操作按钮 */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs text-muted-foreground">
+                    {!file.is_dir && formatFileSize(file.size)}
                   </div>
-                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                     {!file.is_dir && (
                       <>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-7 w-7"
                           onClick={(e) => {
                             e.stopPropagation();
                             handlePreview(file.path);
@@ -370,7 +360,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-7 w-7"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDownload(file.path, file.filename);
@@ -384,7 +374,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
                       onClick={(e) => handleDelete(file.path, file.filename, e)}
                       title="删除"
                     >
@@ -404,16 +394,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
       </div>
 
       {/* File Preview Dialog */}
-      <Dialog
-        open={!!previewFile}
-        onOpenChange={() => {
-          // 如果是图片，释放 blob URL
-          if (previewFile?.type === 'image' && previewFile.content.startsWith('blob:')) {
-            window.URL.revokeObjectURL(previewFile.content);
-          }
-          setPreviewFile(null);
-        }}
-      >
+      <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
         <DialogContent className="max-w-4xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -423,19 +404,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="h-[70vh] w-full rounded-md border p-4">
-            {previewFile?.type === 'image' ? (
-              <div className="flex items-center justify-center h-full">
-                <img
-                  src={previewFile.content}
-                  alt={previewFile.name}
-                  className="max-w-full max-h-full object-contain"
-                  onLoad={() => {
-                    // 图片加载完成后释放 blob URL（可选）
-                    // window.URL.revokeObjectURL(previewFile.content);
-                  }}
-                />
-              </div>
-            ) : previewFile?.type === 'markdown' ? (
+            {previewFile?.type === 'markdown' ? (
               <div
                 className="prose prose-sm dark:prose-invert max-w-none"
                 dangerouslySetInnerHTML={{

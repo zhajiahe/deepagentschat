@@ -5,6 +5,7 @@
 """
 
 import os
+from pathlib import Path
 from typing import Any
 
 from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
@@ -18,6 +19,9 @@ from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
 from app.core.config import settings
+
+SYSTEM_PROMPT_PATH = Path("app/experiment_tools/SYSTEM.md")
+SYSTEM_PROMPT = SYSTEM_PROMPT_PATH.read_text()
 
 if settings.USE_DOCKER_TOOLS:
     from app.tools_docker import ALL_TOOLS, UserContext
@@ -75,6 +79,7 @@ async def get_agent(
     agent: Runnable = create_agent(
         model,
         tools=[*mcp_tools, *ALL_TOOLS],
+        system_prompt=SYSTEM_PROMPT,
         checkpointer=checkpointer,
         context_schema=UserContext,  # 指定 context schema
         middleware=[

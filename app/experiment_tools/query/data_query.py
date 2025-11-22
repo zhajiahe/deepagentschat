@@ -1,6 +1,10 @@
 """
 DuckDB 数据查询工具
 用法: python data_query.py "SELECT * FROM 'data.csv'"
+
+支持格式:
+- CSV/JSON/Parquet: 直接由 DuckDB 读取
+- Excel (xlsx/xls): 由 Polars 预处理后注册到 DuckDB
 """
 
 import re
@@ -8,6 +12,7 @@ import sys
 from pathlib import Path
 
 import duckdb
+import polars as pl
 
 
 def main():
@@ -31,6 +36,9 @@ def main():
         # 设置合理的默认配置
         con.execute("SET memory_limit='2GB'")
         con.execute("SET threads=4")
+
+        # 预处理 Excel 文件并注册到 DuckDB（返回修改后的查询）
+        query = register_excel_files(con, query)
 
         result = con.execute(query)
 
@@ -73,6 +81,57 @@ def main():
     except Exception as e:
         print(f"❌ 执行错误: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def register_excel_files(con: duckdb.DuckDBPyConnection, query: str) -> str:
+    """使用 Polars 预处理 Excel 文件并注册到 DuckDB
+
+    Returns:
+        修改后的查询语句（将 Excel 文件路径替换为表名）
+    """
+    # 匹配 Excel 文件路径
+    pattern = r"['\"]([^'\"]+\.(xlsx|xls))['\"]"
+    excel_files = re.findall(pattern, query, re.IGNORECASE)
+
+    modified_query = query
+
+    for file_path, _ in excel_files:
+        # 跳过通配符
+        if "*" in file_path or "?" in file_path:
+            continue
+
+        if not Path(file_path).exists():
+            continue
+
+        try:
+            # 使用 Polars 读取 Excel 文件
+            print(f"📊 使用 Polars 预处理: {file_path}")
+            df_polars = pl.read_excel(file_path)
+
+            # 转换为 Pandas DataFrame (DuckDB 兼容性更好)
+            df_pandas = df_polars.to_pandas()
+
+            # 生成表名 (移除路径和扩展名)
+            table_name = Path(file_path).stem
+
+            # 注册到 DuckDB
+            con.register(table_name, df_pandas)
+            print(f"✅ 已注册表: {table_name} ({len(df_pandas)} 行 × {len(df_pandas.columns)} 列)\n")
+
+            # 替换查询中的文件路径为表名
+            # 匹配带引号的文件路径
+            modified_query = re.sub(
+                rf"['\"]({re.escape(file_path)})['\"]",
+                table_name,
+                modified_query,
+                flags=re.IGNORECASE,
+            )
+
+        except Exception as e:
+            print(f"⚠️  预处理 {file_path} 失败: {e}", file=sys.stderr)
+            continue
+
+    return modified_query
 
 
 def check_files_exist(query: str):

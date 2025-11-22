@@ -12,7 +12,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+    UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+    # 设置中文 locale
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
 # 安装 uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
@@ -20,7 +23,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # 替换 Debian 源为阿里云源
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
-# 安装系统依赖
+# 安装系统依赖和中文字体
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # 基础工具
     bash \
@@ -36,11 +39,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     gfortran \
     make \
+    # 中文字体支持
+    fonts-wqy-microhei \
+    fonts-wqy-zenhei \
+    fonts-noto-cjk \
+    fonts-noto-cjk-extra \
+    fontconfig \
+    # locale 支持
+    locales \
     # 清理
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 使用 uv 安装 Python 数据分析库 (移除版本锁定以兼容 Python 3.13)
+# 配置 locale（可选，但推荐）
+RUN echo "zh_CN.UTF-8 UTF-8" > /etc/locale.gen && \
+    locale-gen zh_CN.UTF-8 && \
+    update-locale LANG=zh_CN.UTF-8
+
+# 刷新字体缓存
+RUN fc-cache -fv
+
+# 使用 uv 安装 Python 数据分析库
 RUN uv pip install --system --no-cache \
     # 数据处理
     pandas \
@@ -52,21 +71,37 @@ RUN uv pip install --system --no-cache \
     # 文件格式
     openpyxl \
     xlrd \
-    # 数据可视化（可选）
+    # 数据可视化
     matplotlib \
     seaborn \
+    plotly \
+    kaleido \
     # 工具
     tabulate \
     requests \
     beautifulsoup4 \
-    # 科学计算（可选）
+    # 科学计算
     scipy \
     scikit-learn
+
+# 创建 matplotlib 配置目录
+RUN mkdir -p /etc/matplotlib
+
+# 配置 matplotlib 使用中文字体
+RUN echo "font.family: sans-serif" > /etc/matplotlib/matplotlibrc && \
+    echo "font.sans-serif: WenQuanYi Micro Hei, WenQuanYi Zen Hei, Noto Sans CJK SC, DejaVu Sans" >> /etc/matplotlib/matplotlibrc && \
+    echo "axes.unicode_minus: False" >> /etc/matplotlib/matplotlibrc && \
+    echo "backend: Agg" >> /etc/matplotlib/matplotlibrc
 
 # 创建非 root 用户
 RUN useradd -m -u 1000 -s /bin/bash tooluser && \
     mkdir -p /workspace && \
     chown -R tooluser:tooluser /workspace
+
+# 为用户创建 matplotlib 配置目录
+RUN mkdir -p /home/tooluser/.config/matplotlib && \
+    cp /etc/matplotlib/matplotlibrc /home/tooluser/.config/matplotlib/ && \
+    chown -R tooluser:tooluser /home/tooluser/.config
 
 # 复制工具脚本到镜像中
 COPY app/experiment_tools /opt/tools
@@ -77,6 +112,9 @@ WORKDIR /workspace
 
 # 切换到非 root 用户
 USER tooluser
+
+# 设置用户环境变量
+ENV MPLCONFIGDIR=/home/tooluser/.config/matplotlib
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
