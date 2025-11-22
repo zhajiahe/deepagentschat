@@ -1,17 +1,23 @@
-# Docker 镜像用于安全执行用户代码和工具
+# Docker 镜像用于安全执行用户代码和工具 (国内镜像加速版)
 # 基于 Python 3.13 slim 镜像，包含数据分析工具
 
 FROM python:3.13-slim
 
 # 设置标签
 LABEL maintainer="DeepAgentsChat"
-LABEL description="Isolated execution environment for user tools"
+LABEL description="Isolated execution environment for user tools (China Mirror)"
 
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 替换 Debian 源为阿里云源
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+
+# 配置 pip 使用清华源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \

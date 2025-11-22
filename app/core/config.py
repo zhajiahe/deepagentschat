@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     APP_NAME: str = "FastAPI Template"
     DEBUG: bool = True
 
+    # Docker 工具配置
+    USE_DOCKER_TOOLS: bool = False
+    DOCKER_IMAGE: str = "deepagentschat-tools:latest"
+    DOCKER_CPU_LIMIT: float = 1.0
+    DOCKER_MEMORY_LIMIT: str = "512m"
+    DOCKER_NETWORK_MODE: str = "none"
+    DOCKER_TIMEOUT: int = 30
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

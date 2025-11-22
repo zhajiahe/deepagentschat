@@ -79,56 +79,6 @@ class UserContext:
     user_id: str
 
 
-def get_work_path(user_id: str | None = None) -> Path:
-    """
-    获取工作目录
-
-    Args:
-        user_id: 用户 ID（可选），如果为 None 则返回公共目录
-
-    Returns:
-        Path: 工作目录路径
-    """
-    if user_id:
-        user_path = STORAGE_ROOT / str(user_id)
-        user_path.mkdir(parents=True, exist_ok=True)
-        return user_path
-    return PUBLIC_DIR
-
-
-def sanitize_path(user_id: str | None, filename: str) -> Path:
-    """
-    验证并规范化文件路径，防止路径遍历攻击
-
-    Args:
-        user_id: 用户 ID（可选）
-        filename: 文件名或相对路径
-
-    Returns:
-        Path: 规范化后的完整路径
-
-    Raises:
-        ValueError: 如果路径包含非法字符或尝试访问父目录
-    """
-    work_path = get_work_path(user_id)
-
-    # 移除路径中的 ../ 和绝对路径
-    filename = filename.lstrip("/")
-    if ".." in Path(filename).parts:
-        raise ValueError("路径不能包含 '..'")
-
-    file_path = (work_path / filename).resolve()
-
-    # 确保文件路径在工作目录内
-    if not str(file_path).startswith(str(work_path.resolve())):
-        raise ValueError("路径必须在工作目录内")
-
-    return file_path
-
-
-# 不再需要这些函数，使用 shared_container.py 代替
-
-
 # ============ 工具定义 ============
 
 
@@ -315,7 +265,7 @@ ALL_TOOLS = [
 创建 `docker/Dockerfile.tools`:
 
 ```dockerfile
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \\

@@ -84,12 +84,13 @@ from typing import Literal
 
 from langchain.tools import ToolRuntime, tool
 
-# 文件存储根目录
-STORAGE_ROOT = Path("/tmp/user_files")
-PUBLIC_DIR = STORAGE_ROOT / "public"  # 公共目录
-TOOLS_VENV_DIR = STORAGE_ROOT / ".tools_venv"  # 工具专用虚拟环境
-STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
-PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
+from app.core.storage import (
+    TOOLS_VENV_DIR,
+    sanitize_path,
+)
+from app.core.storage import (
+    get_work_path as _get_storage_path,
+)
 
 
 # ============ Context Schema ============
@@ -102,7 +103,7 @@ class UserContext:
 
 def get_work_path(user_id: str | None = None) -> Path:
     """
-    获取工作目录
+    获取工作目录，并确保工具已部署
 
     Args:
         user_id: 用户 ID（可选），如果为 None 则返回公共目录
@@ -110,13 +111,11 @@ def get_work_path(user_id: str | None = None) -> Path:
     Returns:
         Path: 工作目录路径
     """
+    path = _get_storage_path(user_id)
     if user_id:
-        user_path = STORAGE_ROOT / str(user_id)
-        user_path.mkdir(parents=True, exist_ok=True)
         # 自动初始化用户工具
-        _ensure_user_tools(user_path)
-        return user_path
-    return PUBLIC_DIR
+        _ensure_user_tools(path)
+    return path
 
 
 def _ensure_tools_dependencies() -> None:
@@ -249,35 +248,6 @@ def ensure_tools_venv() -> Path:
         # 创建失败,回退到项目虚拟环境
         project_root = Path(__file__).parent.parent
         return project_root / ".venv" / "bin"
-
-
-def sanitize_path(user_id: str | None, filename: str) -> Path:
-    """
-    清理并验证文件路径
-
-    Args:
-        user_id: 用户 ID（可选）
-        filename: 文件名或相对路径
-
-    Returns:
-        Path: 安全的绝对路径
-
-    Raises:
-        ValueError: 如果路径试图逃逸工作目录
-    """
-    work_path = get_work_path(user_id)
-
-    # 移除路径中的危险字符和序列
-    safe_filename = filename.replace("../", "").replace("..\\", "")
-
-    # 构建完整路径
-    full_path = (work_path / safe_filename).resolve()
-
-    # 确保路径在工作目录内
-    if not str(full_path).startswith(str(work_path.resolve())):
-        raise ValueError(f"路径 '{filename}' 超出工作目录范围")
-
-    return full_path
 
 
 # ============ 工具实现 ============

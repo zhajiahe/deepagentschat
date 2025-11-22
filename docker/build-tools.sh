@@ -11,9 +11,23 @@ NC='\033[0m' # No Color
 
 # 镜像名称
 IMAGE_NAME="${DOCKER_IMAGE:-deepagentschat-tools:latest}"
+DOCKERFILE="Dockerfile.tools"
+
+# 检查参数
+for arg in "$@"
+do
+    case $arg in
+        -c|--cn)
+        DOCKERFILE="Dockerfile.tools.cn"
+        echo -e "${YELLOW}使用国内镜像源构建${NC}"
+        shift
+        ;;
+    esac
+done
 
 echo -e "${GREEN}开始构建 Docker 工具镜像...${NC}"
 echo -e "镜像名称: ${YELLOW}${IMAGE_NAME}${NC}"
+echo -e "Dockerfile: ${YELLOW}${DOCKERFILE}${NC}"
 
 # 检查 Docker 是否安装
 if ! command -v docker &> /dev/null; then
@@ -39,7 +53,7 @@ echo -e "${GREEN}项目根目录: ${PROJECT_ROOT}${NC}"
 echo -e "${GREEN}开始构建...${NC}"
 docker build \
     -t "${IMAGE_NAME}" \
-    -f "${SCRIPT_DIR}/Dockerfile.tools" \
+    -f "${SCRIPT_DIR}/${DOCKERFILE}" \
     "${PROJECT_ROOT}"
 
 # 检查构建结果
