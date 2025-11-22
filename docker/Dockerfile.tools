@@ -1,0 +1,74 @@
+# Docker 镜像用于安全执行用户代码和工具
+# 基于 Python 3.12 slim 镜像，包含数据分析工具
+
+FROM python:3.12-slim
+
+# 设置标签
+LABEL maintainer="DeepAgentsChat"
+LABEL description="Isolated execution environment for user tools"
+
+# 设置环境变量
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # 基础工具
+    bash \
+    coreutils \
+    grep \
+    sed \
+    gawk \
+    curl \
+    wget \
+    git \
+    # 编译工具（某些 Python 包需要）
+    gcc \
+    g++ \
+    make \
+    # 清理
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 安装 Python 数据分析库
+RUN pip install --no-cache-dir \
+    # 数据处理
+    pandas==2.2.0 \
+    numpy==1.26.4 \
+    polars==0.20.0 \
+    # 数据库
+    duckdb==1.1.0 \
+    sqlalchemy==2.0.36 \
+    # 文件格式
+    openpyxl==3.1.5 \
+    xlrd==2.0.1 \
+    # 数据可视化（可选）
+    # matplotlib==3.8.0 \
+    # seaborn==0.13.0 \
+    # 工具
+    tabulate==0.9.0 \
+    requests==2.32.3 \
+    beautifulsoup4==4.12.3 \
+    # 科学计算（可选）
+    # scipy==1.12.0 \
+    # scikit-learn==1.4.0
+
+# 创建非 root 用户
+RUN useradd -m -u 1000 -s /bin/bash tooluser && \
+    mkdir -p /workspace && \
+    chown -R tooluser:tooluser /workspace
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 切换到非 root 用户
+USER tooluser
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "print('healthy')" || exit 1
+
+# 默认命令
+CMD ["/bin/bash"]
