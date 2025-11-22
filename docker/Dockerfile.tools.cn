@@ -1,7 +1,7 @@
 # Docker 镜像用于安全执行用户代码和工具 (国内镜像加速版)
 # 基于 Python 3.13 slim 镜像，包含数据分析工具
-
-FROM python:3.13-slim
+# 使用 DaoCloud 镜像加速
+FROM docker.m.daocloud.io/python:3.13-slim
 
 # 设置标签
 LABEL maintainer="DeepAgentsChat"
