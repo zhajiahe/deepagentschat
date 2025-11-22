@@ -68,7 +68,7 @@ pnpm install
 cd ..
 
 # 构建前端文件
-bash deloey.sh
+bash deploy-web.sh
 ```
 
 ### 3. 配置环境变量
@@ -210,6 +210,45 @@ pnpm lint         # 代码检查
 - **用户设置 API**：个性化配置管理
 
 **完整 API 文档**：启动服务后访问 http://localhost:8000/docs（Swagger UI）或 http://localhost:8000/redoc（ReDoc）
+
+## 🔒 安全性
+
+### ⚠️ 生产环境部署前必须修改的配置
+
+#### 1. 修改 JWT 密钥
+
+```env
+SECRET_KEY=使用强随机字符串（至少32字符）
+REFRESH_SECRET_KEY=使用另一个强随机字符串
+```
+
+生成密钥示例：
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+#### 2. 关闭 DEBUG 模式
+
+```env
+DEBUG=false
+```
+
+#### 3. 使用 HTTPS
+
+- 生产环境必须使用 HTTPS
+- 配置 Nginx 反向代理
+- 使用 Let's Encrypt 免费证书
+
+#### 4. 数据库安全
+
+- 定期备份数据库
+- 限制数据库文件访问权限
+- 生产环境建议使用 PostgreSQL 替代 SQLite
+
+#### 5. API 速率限制
+
+- 配置 Nginx 或使用 FastAPI 中间件限制请求频率
+- 防止 DDoS 攻击
 
 ## 🎨 技术栈
 

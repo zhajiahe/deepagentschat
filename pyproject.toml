@@ -1,7 +1,7 @@
 [project]
 name = "DeepAgentChat"
 version = "0.5.0"
-description = "Add your description here"
+description = "A production-ready AI Agent chat application with LangChain, DeepAgents middleware, and modern React frontend"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
