@@ -16,8 +16,9 @@ ENV PYTHONUNBUFFERED=1 \
 # 替换 Debian 源为阿里云源
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
-# 配置 pip 使用清华源
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+# 配置 pip 使用阿里云源
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip config set global.trusted-host mirrors.aliyun.com
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,8 +39,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 安装 Python 数据分析库
-RUN pip install --no-cache-dir \
+# 安装 Python 数据分析库 (显式指定源)
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
     # 数据处理
     pandas==2.2.0 \
     numpy==1.26.4 \
